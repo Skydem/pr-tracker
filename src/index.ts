@@ -1,4 +1,5 @@
-import { App, ExpressReceiver } from "@slack/bolt";
+import pkg from "@slack/bolt";
+const { App } = pkg;
 import express from "express";
 import { config } from "./config/env.js";
 import { createBitbucketWebhookRouter } from "./webhooks/bitbucket.handler.js";
@@ -8,14 +9,11 @@ import { slackService } from "./services/slack.service.js";
 import { prisma } from "./db/client.js";
 
 async function main() {
-  const receiver = new ExpressReceiver({
-    signingSecret: config.slack.signingSecret,
-    endpoints: "/slack/events",
-  });
-
+  // Slack app with Socket Mode for slash commands
   const app = new App({
     token: config.slack.botToken,
-    receiver,
+    signingSecret: config.slack.signingSecret,
+    socketMode: true,
     appToken: config.slack.appToken,
   });
 
@@ -24,26 +22,30 @@ async function main() {
 
   registerAllCommands(app);
 
-  receiver.router.use(express.json());
-
-  receiver.router.use("/webhooks/bitbucket", createBitbucketWebhookRouter());
-
-  receiver.router.get("/health", (_req, res) => {
-    res.json({ status: "ok", timestamp: new Date().toISOString() });
-  });
-
   app.action(/^(view_pr|review_pr|view_my_pr)/, async ({ ack }) => {
     await ack();
+  });
+
+  // Separate Express server for HTTP endpoints (webhooks, health)
+  const httpServer = express();
+  httpServer.use(express.json());
+  httpServer.use("/webhooks/bitbucket", createBitbucketWebhookRouter());
+  httpServer.get("/health", (_req, res) => {
+    res.json({ status: "ok", timestamp: new Date().toISOString() });
   });
 
   await prisma.$connect();
   console.log("Database connected");
 
-  await app.start(config.port);
-  console.log(`PR Tracker is running on port ${config.port}`);
-  console.log(`Webhook endpoint: http://localhost:${config.port}/webhooks/bitbucket`);
-  console.log(`Slack events: http://localhost:${config.port}/slack/events`);
-  console.log(`Health check: http://localhost:${config.port}/health`);
+  // Start both servers
+  await app.start();
+  console.log("Slack app started (Socket Mode)");
+
+  httpServer.listen(config.port, () => {
+    console.log(`HTTP server running on port ${config.port}`);
+    console.log(`Webhook endpoint: http://localhost:${config.port}/webhooks/bitbucket`);
+    console.log(`Health check: http://localhost:${config.port}/health`);
+  });
 }
 
 main().catch((error) => {
