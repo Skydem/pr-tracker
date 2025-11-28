@@ -34,10 +34,21 @@ cp .env.example .env
 
 ### 3. Create Slack App
 
+#### Option A: Using Manifest (Recommended)
+
+1. Go to [api.slack.com/apps](https://api.slack.com/apps) and click **Create New App**
+2. Choose **From an app manifest**
+3. Select your workspace
+4. Paste the contents of `slack-manifest.yaml` from this repository
+5. Review and click **Create**
+6. After creation, go to **Slash Commands** and update the Request URL to `https://your-domain.com/slack/events`
+
+#### Option B: Manual Setup
+
 1. Go to [api.slack.com/apps](https://api.slack.com/apps) and click **Create New App**
 2. Choose **From scratch**, name it "PR Tracker", select your workspace
 
-#### Configure OAuth & Permissions
+**Configure OAuth & Permissions:**
 
 Navigate to **OAuth & Permissions** and add these Bot Token Scopes:
 - `chat:write` - Send messages
@@ -45,7 +56,7 @@ Navigate to **OAuth & Permissions** and add these Bot Token Scopes:
 - `users:read` - Look up users
 - `users:read.email` - Match users by email
 
-#### Create Slash Command
+**Create Slash Command:**
 
 Navigate to **Slash Commands** and create:
 - Command: `/pr`

@@ -1,0 +1,31 @@
+_metadata:
+  major_version: 2
+  minor_version: 1
+
+display_information:
+  name: PR Tracker
+  description: Track Bitbucket PRs and get Slack notifications for code reviews
+  background_color: "#0052CC"
+
+features:
+  bot_user:
+    display_name: pr-tracker
+    always_online: true
+  slash_commands:
+    - command: /pr
+      description: PR Tracker commands - check status, reviews, and manage PRs
+      usage_hint: "[status|my-reviews|my-prs|link|nudge|help]"
+      should_escape: false
+
+oauth_config:
+  scopes:
+    bot:
+      - chat:write
+      - commands
+      - users:read
+      - users:read.email
+
+settings:
+  socket_mode_enabled: false
+  org_deploy_enabled: false
+  token_rotation_enabled: false
