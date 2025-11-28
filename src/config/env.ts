@@ -29,6 +29,7 @@ export const config = {
     botToken: requireEnv("SLACK_BOT_TOKEN"),
     signingSecret: requireEnv("SLACK_SIGNING_SECRET"),
     appToken: requireEnv("SLACK_APP_TOKEN"),
+    adminUserId: optionalEnv("SLACK_ADMIN_USER_ID", ""),
   },
 
   webhookSecret: optionalEnv("WEBHOOK_SECRET", ""),
