@@ -56,6 +56,13 @@ export function registerHelpCommand(app: App): void {
         },
       },
       {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: "*`/pr mute`* / *`/pr unmute`*\nToggle your personal DM notifications on or off.",
+        },
+      },
+      {
         type: "divider",
       },
       {

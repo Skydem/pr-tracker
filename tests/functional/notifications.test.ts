@@ -595,3 +595,100 @@ describe("Notification Scenarios - Real World Flows", () => {
     expect(slackService.sendDM).toHaveBeenCalledTimes(2);
   });
 });
+
+// =============================================================================
+// Muted User Notification Tests
+// =============================================================================
+
+describe("NotificationService - Muted Users", () => {
+  let notificationService: NotificationService;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    notificationService = new NotificationService();
+  });
+
+  it("should not notify muted reviewer on PR created", async () => {
+    // Reviewer1 is muted, Reviewer2 is not
+    vi.mocked(prisma.user.findUnique)
+      .mockResolvedValueOnce({ notificationsMuted: true } as never) // reviewer1 check
+      .mockResolvedValueOnce({ notificationsMuted: false } as never); // reviewer2 check
+
+    await notificationService.notifyReviewersOnPRCreated(mockPRWithSlackReviewers);
+
+    // Only reviewer2 should be notified
+    expect(slackService.sendDM).toHaveBeenCalledTimes(1);
+    expect(slackService.sendDM).toHaveBeenCalledWith(
+      mockDbUsers.reviewer2.slackUserId,
+      expect.any(Array),
+      expect.any(String)
+    );
+  });
+
+  it("should not notify muted author on changes requested", async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({
+      notificationsMuted: true,
+    } as never);
+
+    await notificationService.notifyAuthorOnChangesRequested(
+      mockPRWithSlackReviewers,
+      "Reviewer Name"
+    );
+
+    expect(slackService.sendDM).not.toHaveBeenCalled();
+  });
+
+  it("should not notify muted author on all approved", async () => {
+    vi.mocked(prService.areAllReviewersApproved).mockResolvedValueOnce(true);
+    vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({
+      notificationsMuted: true,
+    } as never);
+
+    await notificationService.notifyAuthorOnAllApproved(mockPRWithSlackReviewers);
+
+    expect(slackService.sendDM).not.toHaveBeenCalled();
+  });
+
+  it("should not nudge muted reviewers", async () => {
+    vi.mocked(prService.getReviewersWithStatus).mockResolvedValueOnce([
+      { userId: mockDbUsers.reviewer1.id, slackUserId: mockDbUsers.reviewer1.slackUserId },
+      { userId: mockDbUsers.reviewer2.id, slackUserId: mockDbUsers.reviewer2.slackUserId },
+    ]);
+
+    // Reviewer1 is muted, Reviewer2 is not
+    vi.mocked(prisma.user.findUnique)
+      .mockResolvedValueOnce({ notificationsMuted: true } as never)
+      .mockResolvedValueOnce({ notificationsMuted: false } as never);
+
+    const count = await notificationService.nudgeReviewers(mockPRWithSlackReviewers);
+
+    expect(count).toBe(1); // Only 1 reviewer was notified
+    expect(slackService.sendDM).toHaveBeenCalledTimes(1);
+    expect(slackService.sendDM).toHaveBeenCalledWith(
+      mockDbUsers.reviewer2.slackUserId,
+      expect.any(Array),
+      expect.any(String)
+    );
+  });
+
+  it("should notify when user has notificationsMuted: false", async () => {
+    vi.mocked(prisma.user.findUnique)
+      .mockResolvedValueOnce({ notificationsMuted: false } as never)
+      .mockResolvedValueOnce({ notificationsMuted: false } as never);
+
+    await notificationService.notifyReviewersOnPRCreated(mockPRWithSlackReviewers);
+
+    expect(slackService.sendDM).toHaveBeenCalledTimes(2);
+  });
+
+  it("should notify when user record not found (default to unmuted)", async () => {
+    // User not found in DB - should default to allowing notifications
+    vi.mocked(prisma.user.findUnique)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null);
+
+    await notificationService.notifyReviewersOnPRCreated(mockPRWithSlackReviewers);
+
+    expect(slackService.sendDM).toHaveBeenCalledTimes(2);
+  });
+});

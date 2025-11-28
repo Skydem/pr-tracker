@@ -33,13 +33,13 @@ PR Tracker receives Bitbucket Cloud webhooks, logs events to PostgreSQL, and sen
 ### Request Flow
 
 ```
-Bitbucket Webhook ’ /webhooks/bitbucket ’ bitbucket.handler.ts
-                                              “
-                                         pr.service.ts ’ Database (Prisma)
-                                              “
-                                    notification.service.ts ’ slack.service.ts ’ Slack DMs
+Bitbucket Webhook ï¿½ /webhooks/bitbucket ï¿½ bitbucket.handler.ts
+                                              ï¿½
+                                         pr.service.ts ï¿½ Database (Prisma)
+                                              ï¿½
+                                    notification.service.ts ï¿½ slack.service.ts ï¿½ Slack DMs
 
-Slack Command ’ /slack/events ’ commands/*.command.ts ’ pr.service.ts ’ Response
+Slack Command ï¿½ /slack/events ï¿½ commands/*.command.ts ï¿½ pr.service.ts ï¿½ Response
 ```
 
 ### Key Services
@@ -55,11 +55,11 @@ Slack Command ’ /slack/events ’ commands/*.command.ts ’ pr.service.ts ’ Response
 
 ### Slack Commands
 
-All commands use `/pr` prefix: `status <ws/repo/id>`, `my-reviews`, `my-prs`, `link <email>`, `nudge <ws/repo/id>`, `help`
+All commands use `/pr` prefix: `status <ws/repo/id>`, `my-reviews`, `my-prs`, `link <email>`, `nudge <ws/repo/id>`, `mute`, `unmute`, `help`, `admin` (requires `ADMIN_SLACK_USER_ID`)
 
 ### Database Models
 
-- **User**: Links bitbucketUuid ” slackUserId
+- **User**: Links bitbucketUuid ï¿½ slackUserId
 - **PullRequest**: Unique by (bitbucketId, repositorySlug, workspaceSlug)
 - **PRReviewer**: Junction table with review status
 - **PREvent**: Audit log of all PR events
@@ -67,3 +67,10 @@ All commands use `/pr` prefix: `status <ws/repo/id>`, `my-reviews`, `my-prs`, `l
 ### Testing
 
 Tests mock Prisma client via `tests/setup.ts`. Services are tested in isolation with mocked dependencies.
+
+**Test structure:**
+- `tests/*.test.ts` - Unit tests for individual services
+- `tests/functional/*.test.ts` - End-to-end workflow tests
+- `tests/fixtures/bitbucket-payloads.ts` - Realistic Bitbucket webhook payloads with test users/repos
+
+**Vitest note:** `vi.mock()` calls are hoisted to top of file. Variables referenced in mock factories must be defined inside the factory function, not outside.

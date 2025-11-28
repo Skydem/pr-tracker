@@ -3,12 +3,21 @@ import { slackService } from "./slack.service.js";
 import { userService } from "./user.service.js";
 
 export class NotificationService {
+  private async isUserMuted(slackUserId: string): Promise<boolean> {
+    const { prisma } = await import("../db/client.js");
+    const user = await prisma.user.findUnique({
+      where: { slackUserId },
+      select: { notificationsMuted: true },
+    });
+    return user?.notificationsMuted ?? false;
+  }
+
   async notifyReviewersOnPRCreated(pr: PRWithReviewers): Promise<void> {
     const { blocks, text } = slackService.buildPRCreatedMessage(pr);
 
     for (const reviewer of pr.reviewers) {
       const slackUserId = reviewer.user.slackUserId;
-      if (slackUserId) {
+      if (slackUserId && !(await this.isUserMuted(slackUserId))) {
         await slackService.sendDM(slackUserId, blocks, text);
       }
     }
@@ -25,7 +34,7 @@ export class NotificationService {
     const { blocks, text } = slackService.buildPRUpdatedMessage(pr);
 
     for (const reviewer of reviewersWithChangesRequested) {
-      if (reviewer.slackUserId) {
+      if (reviewer.slackUserId && !(await this.isUserMuted(reviewer.slackUserId))) {
         await slackService.sendDM(reviewer.slackUserId, blocks, text);
       }
     }
@@ -36,7 +45,7 @@ export class NotificationService {
     reviewerName: string
   ): Promise<void> {
     const authorSlackId = pr.author.slackUserId;
-    if (!authorSlackId) return;
+    if (!authorSlackId || (await this.isUserMuted(authorSlackId))) return;
 
     const { blocks, text } = slackService.buildChangesRequestedMessage(
       pr,
@@ -51,7 +60,7 @@ export class NotificationService {
     if (!allApproved) return;
 
     const authorSlackId = pr.author.slackUserId;
-    if (!authorSlackId) return;
+    if (!authorSlackId || (await this.isUserMuted(authorSlackId))) return;
 
     const { blocks, text } = slackService.buildAllApprovedMessage(pr);
 
@@ -75,7 +84,7 @@ export class NotificationService {
     }
 
     const authorSlackId = pr.author.slackUserId;
-    if (!authorSlackId) return;
+    if (!authorSlackId || (await this.isUserMuted(authorSlackId))) return;
 
     const { blocks, text } = slackService.buildCommentAddedMessage(
       pr,
@@ -95,7 +104,7 @@ export class NotificationService {
     let notifiedCount = 0;
 
     for (const reviewer of pendingReviewers) {
-      if (reviewer.slackUserId) {
+      if (reviewer.slackUserId && !(await this.isUserMuted(reviewer.slackUserId))) {
         await slackService.sendDM(reviewer.slackUserId, blocks, text);
         notifiedCount++;
       }

@@ -6,6 +6,7 @@ import { registerLinkUserCommand } from "./link-user.command.js";
 import { registerNudgeCommand } from "./nudge.command.js";
 import { registerHelpCommand } from "./help.command.js";
 import { registerAdminCommand } from "./admin.command.js";
+import { registerMuteNotificationsCommand } from "./mute-notifications.command.js";
 
 export function registerAllCommands(app: App): void {
   registerAdminCommand(app);
@@ -15,4 +16,5 @@ export function registerAllCommands(app: App): void {
   registerMyPRsCommand(app);
   registerLinkUserCommand(app);
   registerNudgeCommand(app);
+  registerMuteNotificationsCommand(app);
 }

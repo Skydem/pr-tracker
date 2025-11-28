@@ -665,3 +665,125 @@ describe("Slack Commands - PR with Multiple Status Combinations", () => {
     });
   });
 });
+
+// =============================================================================
+// Mute/Unmute Commands Tests
+// =============================================================================
+
+import { registerMuteNotificationsCommand } from "../../src/commands/mute-notifications.command.js";
+
+describe("Slack Commands - /pr mute and /pr unmute", () => {
+  let mockApp: ReturnType<typeof createMockApp>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockApp = createMockApp();
+    registerMuteNotificationsCommand(mockApp.app);
+  });
+
+  describe("mute command", () => {
+    it("should require linked account", async () => {
+      vi.mocked(prisma.user.findUnique).mockResolvedValueOnce(null);
+
+      const ctx = await mockApp.runCommand("mute", "U_UNKNOWN");
+
+      expect(ctx.respond).toHaveBeenCalledWith(
+        expect.objectContaining({
+          text: expect.stringContaining("haven't linked"),
+        })
+      );
+    });
+
+    it("should mute notifications for user", async () => {
+      vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({
+        ...mockDbUsers.author,
+        notificationsMuted: false,
+      });
+      vi.mocked(prisma.user.update).mockResolvedValueOnce({
+        ...mockDbUsers.author,
+        notificationsMuted: true,
+      });
+
+      const ctx = await mockApp.runCommand("mute", mockDbUsers.author.slackUserId!);
+
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: mockDbUsers.author.id },
+        data: { notificationsMuted: true },
+      });
+      expect(ctx.respond).toHaveBeenCalledWith(
+        expect.objectContaining({
+          text: "Notifications muted",
+        })
+      );
+    });
+
+    it("should show message if already muted", async () => {
+      vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({
+        ...mockDbUsers.author,
+        notificationsMuted: true,
+      });
+
+      const ctx = await mockApp.runCommand("mute", mockDbUsers.author.slackUserId!);
+
+      expect(prisma.user.update).not.toHaveBeenCalled();
+      expect(ctx.respond).toHaveBeenCalledWith(
+        expect.objectContaining({
+          text: "Your notifications are already muted.",
+        })
+      );
+    });
+  });
+
+  describe("unmute command", () => {
+    it("should require linked account", async () => {
+      vi.mocked(prisma.user.findUnique).mockResolvedValueOnce(null);
+
+      const ctx = await mockApp.runCommand("unmute", "U_UNKNOWN");
+
+      expect(ctx.respond).toHaveBeenCalledWith(
+        expect.objectContaining({
+          text: expect.stringContaining("haven't linked"),
+        })
+      );
+    });
+
+    it("should unmute notifications for user", async () => {
+      vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({
+        ...mockDbUsers.author,
+        notificationsMuted: true,
+      });
+      vi.mocked(prisma.user.update).mockResolvedValueOnce({
+        ...mockDbUsers.author,
+        notificationsMuted: false,
+      });
+
+      const ctx = await mockApp.runCommand("unmute", mockDbUsers.author.slackUserId!);
+
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: mockDbUsers.author.id },
+        data: { notificationsMuted: false },
+      });
+      expect(ctx.respond).toHaveBeenCalledWith(
+        expect.objectContaining({
+          text: "Notifications enabled",
+        })
+      );
+    });
+
+    it("should show message if already unmuted", async () => {
+      vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({
+        ...mockDbUsers.author,
+        notificationsMuted: false,
+      });
+
+      const ctx = await mockApp.runCommand("unmute", mockDbUsers.author.slackUserId!);
+
+      expect(prisma.user.update).not.toHaveBeenCalled();
+      expect(ctx.respond).toHaveBeenCalledWith(
+        expect.objectContaining({
+          text: "Your notifications are already enabled.",
+        })
+      );
+    });
+  });
+});
