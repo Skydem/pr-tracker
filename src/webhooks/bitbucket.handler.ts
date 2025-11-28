@@ -20,13 +20,23 @@ function verifyWebhookSignature(
   if (!config.webhookSecret) return true;
   if (!signature) return false;
 
+  // Bitbucket sends signature as "sha256=<hex>"
+  const actualSignature = signature.startsWith("sha256=")
+    ? signature.slice(7)
+    : signature;
+
   const expectedSignature = crypto
     .createHmac("sha256", config.webhookSecret)
     .update(payload)
     .digest("hex");
 
+  // Ensure same length before timing-safe comparison
+  if (actualSignature.length !== expectedSignature.length) {
+    return false;
+  }
+
   return crypto.timingSafeEqual(
-    Buffer.from(signature),
+    Buffer.from(actualSignature),
     Buffer.from(expectedSignature)
   );
 }
