@@ -1,0 +1,88 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String   @id @default(uuid())
+  bitbucketUuid  String?  @unique
+  bitbucketEmail String?  @unique
+  slackUserId    String?  @unique
+  displayName    String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  authoredPRs PullRequest[] @relation("Author")
+  reviews     PRReviewer[]
+  events      PREvent[]
+}
+
+model PullRequest {
+  id             String   @id @default(uuid())
+  bitbucketId    Int
+  repositorySlug String
+  workspaceSlug  String
+  title          String
+  sourceBranch   String
+  destBranch     String
+  state          PRState  @default(OPEN)
+  url            String?
+  authorId       String
+  author         User     @relation("Author", fields: [authorId], references: [id])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  reviewers PRReviewer[]
+  events    PREvent[]
+
+  @@unique([bitbucketId, repositorySlug, workspaceSlug])
+}
+
+model PRReviewer {
+  id            String       @id @default(uuid())
+  pullRequestId String
+  pullRequest   PullRequest  @relation(fields: [pullRequestId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User         @relation(fields: [userId], references: [id])
+  status        ReviewStatus @default(PENDING)
+  updatedAt     DateTime     @updatedAt
+
+  @@unique([pullRequestId, userId])
+}
+
+model PREvent {
+  id            String      @id @default(uuid())
+  pullRequestId String
+  pullRequest   PullRequest @relation(fields: [pullRequestId], references: [id], onDelete: Cascade)
+  eventType     EventType
+  actorId       String
+  actor         User        @relation(fields: [actorId], references: [id])
+  payload       Json?
+  createdAt     DateTime    @default(now())
+}
+
+enum PRState {
+  OPEN
+  MERGED
+  DECLINED
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  CHANGES_REQUESTED
+}
+
+enum EventType {
+  PR_CREATED
+  PR_UPDATED
+  PR_APPROVED
+  PR_CHANGES_REQUESTED
+  PR_COMMENT_ADDED
+  PR_MERGED
+  PR_DECLINED
+}
