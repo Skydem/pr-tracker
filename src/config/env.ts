@@ -20,9 +20,9 @@ export const config = {
   },
 
   bitbucket: {
-    workspace: requireEnv("BITBUCKET_WORKSPACE"),
-    clientId: requireEnv("BITBUCKET_CLIENT_ID"),
-    clientSecret: requireEnv("BITBUCKET_CLIENT_SECRET"),
+    workspace: optionalEnv("BITBUCKET_WORKSPACE", ""),
+    email: optionalEnv("BITBUCKET_EMAIL", ""),
+    apiToken: optionalEnv("BITBUCKET_API_TOKEN", ""),
   },
 
   slack: {

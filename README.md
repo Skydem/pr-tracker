@@ -94,18 +94,26 @@ SLACK_APP_TOKEN=xapp-...       # Basic Information → App-Level Tokens (if usin
 
 Repeat for each repository you want to track.
 
-### 5. Bitbucket API Credentials (Optional)
+### 5. Bitbucket API Token (Optional)
 
-If you need to fetch additional PR data:
+If you need to fetch additional PR data via Bitbucket API:
 
-1. Go to Bitbucket → **Personal settings** → **App passwords**
-2. Create app password with `Repositories: Read` permission
-3. Add to `.env`:
+1. Go to [Atlassian Account Settings](https://id.atlassian.com/manage-profile/security) → **Security** → **Create and manage API tokens**
+2. Click **Create API token with scopes**
+3. Configure:
+   - Name: `PR Tracker`
+   - Expiry: Choose appropriate duration
+   - Application: `Bitbucket`
+   - Scopes: Select `Repositories: Read` and `Pull requests: Read`
+4. Copy the token immediately (it won't be shown again)
+5. Add to `.env`:
    ```
    BITBUCKET_WORKSPACE=your-workspace
-   BITBUCKET_CLIENT_ID=your-username
-   BITBUCKET_CLIENT_SECRET=your-app-password
+   BITBUCKET_EMAIL=your-atlassian-email@example.com
+   BITBUCKET_API_TOKEN=your-api-token
    ```
+
+Note: API tokens use your Atlassian account email for authentication, not your username.
 
 ### 6. Start the Application
 
@@ -191,9 +199,9 @@ Use the same email as your Bitbucket account.
 | `SLACK_BOT_TOKEN` | Yes | Slack Bot OAuth token (`xoxb-...`) |
 | `SLACK_SIGNING_SECRET` | Yes | Slack app signing secret |
 | `SLACK_APP_TOKEN` | No | Slack app token for Socket Mode (`xapp-...`) |
-| `BITBUCKET_WORKSPACE` | Yes | Your Bitbucket workspace slug |
-| `BITBUCKET_CLIENT_ID` | Yes | Bitbucket username or OAuth client ID |
-| `BITBUCKET_CLIENT_SECRET` | Yes | Bitbucket app password or OAuth secret |
+| `BITBUCKET_WORKSPACE` | No | Your Bitbucket workspace slug |
+| `BITBUCKET_EMAIL` | No | Atlassian account email (for API calls) |
+| `BITBUCKET_API_TOKEN` | No | Bitbucket API token (replaces app passwords) |
 | `WEBHOOK_SECRET` | No | Secret for validating Bitbucket webhooks |
 | `PORT` | No | Server port (default: 3000) |
 
