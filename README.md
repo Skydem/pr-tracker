@@ -41,7 +41,12 @@ cp .env.example .env
 3. Select your workspace
 4. Paste the contents of `slack-manifest.yaml` from this repository
 5. Review and click **Create**
-6. After creation, go to **Slash Commands** and update the Request URL to `https://your-domain.com/slack/events`
+6. Go to **Basic Information** → **App-Level Tokens** → **Generate Token** with `connections:write` scope
+7. Copy the token (`xapp-...`) to your `.env` as `SLACK_APP_TOKEN`
+
+To switch from Socket Mode to HTTP mode (for production):
+1. Go to **Socket Mode** and disable it
+2. Go to **Slash Commands** → edit `/pr` → set Request URL to `https://your-domain.com/slack/events`
 
 #### Option B: Manual Setup
 
