@@ -239,9 +239,9 @@ describe("Reviewer Workflow - Sync Reviewers", () => {
       vi.mocked(prisma.pullRequest.findUnique).mockResolvedValueOnce(mockDbPRs.openPR);
       vi.mocked(prisma.pullRequest.update).mockResolvedValueOnce(mockDbPRs.openPR);
 
-      // Existing reviewer
+      // Existing reviewer (with user data for include: { user: true })
       vi.mocked(prisma.pRReviewer.findMany).mockResolvedValueOnce([
-        { ...mockDbReviewers.pr42Reviewer1, userId: mockDbUsers.reviewer1.id },
+        { ...mockDbReviewers.pr42Reviewer1, userId: mockDbUsers.reviewer1.id, user: mockDbUsers.reviewer1 },
       ]);
 
       // User lookups for sync
@@ -250,8 +250,7 @@ describe("Reviewer Workflow - Sync Reviewers", () => {
         .mockResolvedValueOnce(mockDbUsers.reviewer1) // reviewer1 lookup
         .mockResolvedValueOnce(mockDbUsers.reviewer2); // new reviewer2 lookup
 
-      vi.mocked(prisma.pRReviewer.create).mockResolvedValue({} as never);
-      vi.mocked(prisma.user.findUnique).mockResolvedValue(mockDbUsers.reviewer1);
+      vi.mocked(prisma.pRReviewer.createMany).mockResolvedValue({ count: 1 });
 
       // Mock final PR fetch
       vi.mocked(prisma.pullRequest.findUniqueOrThrow).mockResolvedValueOnce({
@@ -269,8 +268,8 @@ describe("Reviewer Workflow - Sync Reviewers", () => {
 
       await prService.createOrUpdatePR(payload.pullrequest, "acme-corp");
 
-      // Verify new reviewer was created
-      expect(prisma.pRReviewer.create).toHaveBeenCalled();
+      // Verify new reviewer was created (using batch createMany)
+      expect(prisma.pRReviewer.createMany).toHaveBeenCalled();
     });
 
     it("should remove reviewers when they are removed from PR", async () => {
@@ -279,10 +278,10 @@ describe("Reviewer Workflow - Sync Reviewers", () => {
       vi.mocked(prisma.pullRequest.findUnique).mockResolvedValueOnce(mockDbPRs.openPR);
       vi.mocked(prisma.pullRequest.update).mockResolvedValueOnce(mockDbPRs.openPR);
 
-      // Existing reviewers
+      // Existing reviewers (with user data for include: { user: true })
       const existingReviewers = [
-        { ...mockDbReviewers.pr42Reviewer1, userId: mockDbUsers.reviewer1.id },
-        { ...mockDbReviewers.pr42Reviewer2, userId: mockDbUsers.reviewer2.id },
+        { ...mockDbReviewers.pr42Reviewer1, userId: mockDbUsers.reviewer1.id, user: mockDbUsers.reviewer1 },
+        { ...mockDbReviewers.pr42Reviewer2, userId: mockDbUsers.reviewer2.id, user: mockDbUsers.reviewer2 },
       ];
       vi.mocked(prisma.pRReviewer.findMany).mockResolvedValueOnce(existingReviewers);
 
@@ -291,11 +290,7 @@ describe("Reviewer Workflow - Sync Reviewers", () => {
         .mockResolvedValueOnce(mockDbUsers.author)
         .mockResolvedValueOnce(mockDbUsers.reviewer1);
 
-      vi.mocked(prisma.user.findUnique)
-        .mockResolvedValueOnce(mockDbUsers.reviewer1)
-        .mockResolvedValueOnce(mockDbUsers.reviewer2);
-
-      vi.mocked(prisma.pRReviewer.delete).mockResolvedValue({} as never);
+      vi.mocked(prisma.pRReviewer.deleteMany).mockResolvedValue({ count: 1 });
 
       // Mock final PR fetch
       vi.mocked(prisma.pullRequest.findUniqueOrThrow).mockResolvedValueOnce({
@@ -309,8 +304,8 @@ describe("Reviewer Workflow - Sync Reviewers", () => {
 
       await prService.createOrUpdatePR(payload.pullrequest, "acme-corp");
 
-      // Verify removed reviewer was deleted
-      expect(prisma.pRReviewer.delete).toHaveBeenCalled();
+      // Verify removed reviewer was deleted (using batch deleteMany)
+      expect(prisma.pRReviewer.deleteMany).toHaveBeenCalled();
     });
   });
 });

@@ -1,5 +1,7 @@
 import type { App } from "@slack/bolt";
 import { prService } from "../services/pr.service.js";
+import { parsePRIdentifier } from "../utils/pr-identifier.js";
+import { getStatusEmoji } from "../utils/review-status.js";
 
 export function registerStatusCommand(app: App): void {
   app.command("/pr", async ({ command, ack, respond }) => {
@@ -20,26 +22,16 @@ export function registerStatusCommand(app: App): void {
       return;
     }
 
-    const parts = prIdentifier.split("/");
-    if (parts.length !== 3) {
+    const parseResult = parsePRIdentifier(prIdentifier);
+    if (!parseResult.success) {
       await respond({
         response_type: "ephemeral",
-        text: "Invalid format. Use: `workspace/repo/pr-id`",
+        text: parseResult.error,
       });
       return;
     }
 
-    const [workspaceSlug, repositorySlug, prIdStr] = parts;
-    const prId = parseInt(prIdStr, 10);
-
-    if (isNaN(prId)) {
-      await respond({
-        response_type: "ephemeral",
-        text: "Invalid PR ID. Must be a number.",
-      });
-      return;
-    }
-
+    const { workspaceSlug, repositorySlug, prId } = parseResult.data;
     const pr = await prService.getPRByBitbucketId(prId, repositorySlug, workspaceSlug);
 
     if (!pr) {
@@ -119,15 +111,4 @@ export function registerStatusCommand(app: App): void {
       text: `PR Status: ${pr.title}`,
     });
   });
-}
-
-function getStatusEmoji(status: string): string {
-  switch (status) {
-    case "APPROVED":
-      return ":white_check_mark:";
-    case "CHANGES_REQUESTED":
-      return ":x:";
-    default:
-      return ":hourglass:";
-  }
 }

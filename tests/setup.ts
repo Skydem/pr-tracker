@@ -28,9 +28,11 @@ vi.mock("../src/db/client.js", () => ({
       findUnique: vi.fn(),
       findMany: vi.fn(),
       create: vi.fn(),
+      createMany: vi.fn(),
       update: vi.fn(),
       updateMany: vi.fn(),
       delete: vi.fn(),
+      deleteMany: vi.fn(),
     },
     pREvent: {
       findFirst: vi.fn(),

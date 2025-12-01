@@ -111,7 +111,7 @@ describe("SlackService", () => {
 
       await slackService.sendDM("slack-123", [], "test message");
 
-      expect(consoleSpy).toHaveBeenCalledWith("Slack app not initialized");
+      expect(consoleSpy).toHaveBeenCalledWith("[SlackService] Slack app not initialized");
       consoleSpy.mockRestore();
     });
 

@@ -74,3 +74,4 @@ Tests mock Prisma client via `tests/setup.ts`. Services are tested in isolation 
 - `tests/fixtures/bitbucket-payloads.ts` - Realistic Bitbucket webhook payloads with test users/repos
 
 **Vitest note:** `vi.mock()` calls are hoisted to top of file. Variables referenced in mock factories must be defined inside the factory function, not outside.
+- never add comments, code should be self explanatory with clear, understandable variable, function names

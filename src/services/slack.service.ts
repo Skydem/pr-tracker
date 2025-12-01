@@ -1,4 +1,5 @@
 import type { App } from "@slack/bolt";
+import type { KnownBlock } from "@slack/types";
 import type { PRWithReviewers } from "./pr.service.js";
 
 export class SlackService {
@@ -8,24 +9,24 @@ export class SlackService {
     this.app = app;
   }
 
-  async sendDM(slackUserId: string, blocks: object[], text: string): Promise<void> {
+  async sendDM(slackUserId: string, blocks: KnownBlock[], text: string): Promise<void> {
     if (!this.app) {
-      console.error("Slack app not initialized");
+      console.error("[SlackService] Slack app not initialized");
       return;
     }
 
     try {
       await this.app.client.chat.postMessage({
         channel: slackUserId,
-        blocks: blocks as never[],
+        blocks,
         text,
       });
     } catch (error) {
-      console.error(`Failed to send DM to ${slackUserId}:`, error);
+      console.error(`[SlackService] Failed to send DM to ${slackUserId}:`, error);
     }
   }
 
-  buildPRCreatedMessage(pr: PRWithReviewers): { blocks: object[]; text: string } {
+  buildPRCreatedMessage(pr: PRWithReviewers): { blocks: KnownBlock[]; text: string } {
     const text = `You've been added as a reviewer on "${pr.title}"`;
     const blocks = [
       {
@@ -66,12 +67,12 @@ export class SlackService {
           },
         ],
       },
-    ];
+    ] as const;
 
-    return { blocks, text };
+    return { blocks: blocks as unknown as KnownBlock[], text };
   }
 
-  buildPRUpdatedMessage(pr: PRWithReviewers): { blocks: object[]; text: string } {
+  buildPRUpdatedMessage(pr: PRWithReviewers): { blocks: KnownBlock[]; text: string } {
     const text = `${pr.author.displayName} updated "${pr.title}"`;
     const blocks = [
       {
@@ -97,15 +98,15 @@ export class SlackService {
           text: "The author has made changes. Please re-review.",
         },
       },
-    ];
+    ] as const;
 
-    return { blocks, text };
+    return { blocks: blocks as unknown as KnownBlock[], text };
   }
 
   buildChangesRequestedMessage(
     pr: PRWithReviewers,
     reviewerName: string
-  ): { blocks: object[]; text: string } {
+  ): { blocks: KnownBlock[]; text: string } {
     const text = `${reviewerName} requested changes on "${pr.title}"`;
     const blocks = [
       {
@@ -124,12 +125,12 @@ export class SlackService {
           },
         ],
       },
-    ];
+    ] as const;
 
-    return { blocks, text };
+    return { blocks: blocks as unknown as KnownBlock[], text };
   }
 
-  buildAllApprovedMessage(pr: PRWithReviewers): { blocks: object[]; text: string } {
+  buildAllApprovedMessage(pr: PRWithReviewers): { blocks: KnownBlock[]; text: string } {
     const text = `All reviewers approved "${pr.title}"!`;
     const blocks = [
       {
@@ -148,15 +149,15 @@ export class SlackService {
           },
         ],
       },
-    ];
+    ] as const;
 
-    return { blocks, text };
+    return { blocks: blocks as unknown as KnownBlock[], text };
   }
 
   buildCommentAddedMessage(
     pr: PRWithReviewers,
     commenterName: string
-  ): { blocks: object[]; text: string } {
+  ): { blocks: KnownBlock[]; text: string } {
     const text = `${commenterName} commented on "${pr.title}"`;
     const blocks = [
       {
@@ -175,12 +176,12 @@ export class SlackService {
           },
         ],
       },
-    ];
+    ] as const;
 
-    return { blocks, text };
+    return { blocks: blocks as unknown as KnownBlock[], text };
   }
 
-  buildNudgeMessage(pr: PRWithReviewers): { blocks: object[]; text: string } {
+  buildNudgeMessage(pr: PRWithReviewers): { blocks: KnownBlock[]; text: string } {
     const text = `Reminder: Please review "${pr.title}"`;
     const blocks = [
       {
@@ -199,9 +200,9 @@ export class SlackService {
           },
         ],
       },
-    ];
+    ] as const;
 
-    return { blocks, text };
+    return { blocks: blocks as unknown as KnownBlock[], text };
   }
 }
 

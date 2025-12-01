@@ -80,38 +80,38 @@ export class PRService {
   ): Promise<void> {
     const existingReviewers = await prisma.pRReviewer.findMany({
       where: { pullRequestId },
+      include: { user: true },
     });
+
+    const users = await Promise.all(
+      reviewers.map((r) =>
+        userService.findOrCreateUser(r.uuid, null, r.display_name)
+      )
+    );
 
     const existingUserIds = new Set(existingReviewers.map((r) => r.userId));
     const newReviewerUuids = new Set(reviewers.map((r) => r.uuid));
 
-    for (const reviewer of reviewers) {
-      const user = await userService.findOrCreateUser(
-        reviewer.uuid,
-        null,
-        reviewer.display_name
-      );
+    const newReviewerData = users
+      .filter((u) => !existingUserIds.has(u.id))
+      .map((u) => ({
+        pullRequestId,
+        userId: u.id,
+        status: "PENDING" as const,
+      }));
 
-      if (!existingUserIds.has(user.id)) {
-        await prisma.pRReviewer.create({
-          data: {
-            pullRequestId,
-            userId: user.id,
-            status: "PENDING",
-          },
-        });
-      }
+    if (newReviewerData.length > 0) {
+      await prisma.pRReviewer.createMany({ data: newReviewerData });
     }
 
-    for (const existing of existingReviewers) {
-      const user = await prisma.user.findUnique({
-        where: { id: existing.userId },
-      });
-      if (user?.bitbucketUuid && !newReviewerUuids.has(user.bitbucketUuid)) {
-        await prisma.pRReviewer.delete({
-          where: { id: existing.id },
-        });
-      }
+    const removedIds = existingReviewers
+      .filter(
+        (er) => er.user.bitbucketUuid && !newReviewerUuids.has(er.user.bitbucketUuid)
+      )
+      .map((er) => er.id);
+
+    if (removedIds.length > 0) {
+      await prisma.pRReviewer.deleteMany({ where: { id: { in: removedIds } } });
     }
   }
 
