@@ -44,7 +44,7 @@ Slack Command � /slack/events � commands/*.command.ts � pr.service.ts � 
 
 ### Key Services
 
-- **UserService** (`src/services/user.service.ts`): Maps Bitbucket users to Slack users. Tries email matching first, falls back to manual `/pr link` command.
+- **UserService** (`src/services/user.service.ts`): Maps Bitbucket users to Slack users. Auto-links by email matching, falls back to fuzzy name matching, or manual `/pr admin link` command.
 - **PRService** (`src/services/pr.service.ts`): CRUD for pull requests and reviewers. Tracks reviewer status (PENDING/APPROVED/CHANGES_REQUESTED).
 - **NotificationService** (`src/services/notification.service.ts`): Determines who to notify based on event type and sends via SlackService.
 - **SlackService** (`src/services/slack.service.ts`): Builds Block Kit messages and sends DMs.
@@ -55,7 +55,7 @@ Slack Command � /slack/events � commands/*.command.ts � pr.service.ts � 
 
 ### Slack Commands
 
-All commands use `/pr` prefix: `status <ws/repo/id>`, `my-reviews`, `my-prs`, `link <email>`, `nudge <ws/repo/id>`, `mute`, `unmute`, `help`, `admin` (requires `ADMIN_SLACK_USER_ID`)
+All commands use `/pr` prefix: `status <ws/repo/id>`, `my-reviews`, `my-prs`, `nudge <ws/repo/id>`, `mute`, `unmute`, `help`, `admin` (requires `SLACK_ADMIN_USER_ID`)
 
 ### Database Models
 

@@ -67,7 +67,7 @@ Navigate to **Slash Commands** and create:
 - Command: `/pr`
 - Request URL: `https://your-domain.com/slack/events`
 - Description: `PR Tracker commands`
-- Usage Hint: `[status|my-reviews|my-prs|link|nudge|help]`
+- Usage Hint: `[status|my-reviews|my-prs|nudge|mute|help]`
 
 #### Enable Socket Mode (Optional, for local development)
 
@@ -176,15 +176,13 @@ Update your Slack app and Bitbucket webhook URLs with the public URL.
 
 ## Usage
 
-### Link Your Account
+### Account Linking
 
-Each user needs to link their Bitbucket account to Slack:
+Users are automatically linked when their Bitbucket email matches their Slack email. For users with different emails, an admin can manually link accounts:
 
 ```
-/pr link your.email@company.com
+/pr admin link "Display Name" @slack-user
 ```
-
-Use the same email as your Bitbucket account.
 
 ### Available Commands
 
@@ -195,7 +193,9 @@ Use the same email as your Bitbucket account.
 | `/pr my-prs` | List your open PRs with status |
 | `/pr status workspace/repo/123` | View specific PR details |
 | `/pr nudge workspace/repo/123` | Remind pending reviewers |
-| `/pr link email@example.com` | Link your Bitbucket account |
+| `/pr mute` | Disable DM notifications |
+| `/pr unmute` | Enable DM notifications |
+| `/pr admin` | Admin commands (requires `SLACK_ADMIN_USER_ID`) |
 
 ### Notification Rules
 
@@ -215,6 +215,7 @@ Use the same email as your Bitbucket account.
 | `SLACK_BOT_TOKEN` | Yes | Slack Bot OAuth token (`xoxb-...`) |
 | `SLACK_SIGNING_SECRET` | Yes | Slack app signing secret |
 | `SLACK_APP_TOKEN` | No | Slack app token for Socket Mode (`xapp-...`) |
+| `SLACK_ADMIN_USER_ID` | No | Slack user ID for admin commands (`U...`) |
 | `BITBUCKET_WORKSPACE` | No | Your Bitbucket workspace slug |
 | `BITBUCKET_EMAIL` | No | Atlassian account email (for API calls) |
 | `BITBUCKET_API_TOKEN` | No | Bitbucket API token (replaces app passwords) |
@@ -233,9 +234,10 @@ curl http://localhost:3000/health
 
 ### Users not receiving notifications
 
-1. Ensure user has linked their account: `/pr link email@example.com`
-2. Check the email matches their Bitbucket account email
+1. Check if user is auto-linked (emails must match between Bitbucket and Slack)
+2. If emails differ, admin can link manually: `/pr admin link "Name" @user`
 3. Verify the bot has permission to DM the user
+4. Check if user has muted notifications: `/pr unmute`
 
 ### Webhooks not working
 
