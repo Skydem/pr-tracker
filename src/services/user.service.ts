@@ -1,9 +1,25 @@
 import { prisma } from "../db/client.js";
 import type { User } from "@prisma/client";
 import type { App } from "@slack/bolt";
+import { findBestMatch } from "../utils/fuzzy-match.js";
+
+interface SlackMember {
+  id: string;
+  name: string;
+  real_name?: string;
+  profile?: {
+    real_name?: string;
+    display_name?: string;
+  };
+  deleted?: boolean;
+  is_bot?: boolean;
+}
 
 export class UserService {
   private slackApp: App | null = null;
+  private slackUsersCache: SlackMember[] | null = null;
+  private slackUsersCacheTime: number = 0;
+  private static CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
   setSlackApp(app: App) {
     this.slackApp = app;
@@ -34,16 +50,23 @@ export class UserService {
           },
         });
       }
+
+      if (!user.slackUserId) {
+        user = await this.tryAutoLinkByName(user);
+      }
+
       return user;
     }
 
-    return prisma.user.create({
+    const newUser = await prisma.user.create({
       data: {
         bitbucketUuid,
         bitbucketEmail: email,
         displayName,
       },
     });
+
+    return this.tryAutoLinkByName(newUser);
   }
 
   async linkSlackUser(
@@ -109,6 +132,91 @@ export class UserService {
     return prisma.user.findUnique({
       where: { bitbucketUuid },
     });
+  }
+
+  async tryAutoLinkByName(user: User): Promise<User> {
+    if (!this.slackApp || user.slackUserId) {
+      return user;
+    }
+
+    try {
+      const slackUsers = await this.getSlackUsers();
+      if (!slackUsers.length) {
+        return user;
+      }
+
+      const linkedSlackIds = await this.getLinkedSlackUserIds();
+      const availableSlackUsers = slackUsers.filter(
+        (su) => !su.deleted && !su.is_bot && !linkedSlackIds.has(su.id)
+      );
+
+      const match = findBestMatch(
+        user.displayName,
+        availableSlackUsers,
+        (su) => this.getSlackUserDisplayName(su),
+        0.7
+      );
+
+      if (match) {
+        console.log(
+          `[AutoLink] Matched "${user.displayName}" to Slack user "${this.getSlackUserDisplayName(match.item)}" (score: ${match.score.toFixed(2)})`
+        );
+
+        return prisma.user.update({
+          where: { id: user.id },
+          data: { slackUserId: match.item.id },
+        });
+      }
+    } catch (error) {
+      console.error("[AutoLink] Failed to auto-link user:", error);
+    }
+
+    return user;
+  }
+
+  private getSlackUserDisplayName(member: SlackMember): string {
+    return (
+      member.profile?.real_name ||
+      member.real_name ||
+      member.profile?.display_name ||
+      member.name
+    );
+  }
+
+  private async getSlackUsers(): Promise<SlackMember[]> {
+    if (!this.slackApp) {
+      return [];
+    }
+
+    const now = Date.now();
+    if (
+      this.slackUsersCache &&
+      now - this.slackUsersCacheTime < UserService.CACHE_TTL_MS
+    ) {
+      return this.slackUsersCache;
+    }
+
+    try {
+      const result = await this.slackApp.client.users.list({});
+      const members = (result.members || []) as SlackMember[];
+
+      this.slackUsersCache = members;
+      this.slackUsersCacheTime = now;
+
+      return members;
+    } catch (error) {
+      console.error("[AutoLink] Failed to fetch Slack users:", error);
+      return this.slackUsersCache || [];
+    }
+  }
+
+  private async getLinkedSlackUserIds(): Promise<Set<string>> {
+    const linkedUsers = await prisma.user.findMany({
+      where: { slackUserId: { not: null } },
+      select: { slackUserId: true },
+    });
+
+    return new Set(linkedUsers.map((u) => u.slackUserId!));
   }
 }
 

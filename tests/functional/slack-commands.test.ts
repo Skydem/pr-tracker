@@ -45,7 +45,6 @@ import { notificationService } from "../../src/services/notification.service.js"
 import { registerStatusCommand } from "../../src/commands/status.command.js";
 import { registerMyReviewsCommand } from "../../src/commands/my-reviews.command.js";
 import { registerMyPRsCommand } from "../../src/commands/my-prs.command.js";
-import { registerLinkUserCommand } from "../../src/commands/link-user.command.js";
 import { registerNudgeCommand } from "../../src/commands/nudge.command.js";
 import { registerHelpCommand } from "../../src/commands/help.command.js";
 
@@ -347,112 +346,6 @@ describe("Slack Commands - /pr my-prs", () => {
   });
 });
 
-describe("Slack Commands - /pr link", () => {
-  let mockApp: ReturnType<typeof createMockApp>;
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockApp = createMockApp();
-    registerLinkUserCommand(mockApp.app);
-  });
-
-  it("should successfully link a new user", async () => {
-    // No existing link for this Slack user
-    vi.mocked(prisma.user.findUnique)
-      .mockResolvedValueOnce(null) // slackUserId lookup
-      .mockResolvedValueOnce(null); // email lookup
-
-    vi.mocked(prisma.user.create).mockResolvedValueOnce({
-      id: "new-user-id",
-      bitbucketUuid: null,
-      bitbucketEmail: "john@acme.com",
-      slackUserId: "U_NEW_USER",
-      displayName: "john",
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
-
-    const ctx = await mockApp.runCommand("link john@acme.com", "U_NEW_USER");
-
-    expect(ctx.respond).toHaveBeenCalledWith(
-      expect.objectContaining({
-        text: expect.stringContaining("Successfully linked"),
-      })
-    );
-  });
-
-  it("should link existing Bitbucket user to Slack", async () => {
-    vi.mocked(prisma.user.findUnique)
-      .mockResolvedValueOnce(null) // No existing Slack link
-      .mockResolvedValueOnce({
-        ...mockDbUsers.author,
-        slackUserId: null, // Existing user but no Slack link yet
-      });
-
-    vi.mocked(prisma.user.update).mockResolvedValueOnce({
-      ...mockDbUsers.author,
-      slackUserId: "U_NEW_LINK",
-    });
-
-    const ctx = await mockApp.runCommand("link john.developer@acme.com", "U_NEW_LINK");
-
-    expect(ctx.respond).toHaveBeenCalledWith(
-      expect.objectContaining({
-        text: expect.stringContaining("Successfully linked"),
-      })
-    );
-  });
-
-  it("should reject if Slack user already linked", async () => {
-    vi.mocked(prisma.user.findUnique).mockResolvedValueOnce(mockDbUsers.author);
-
-    const ctx = await mockApp.runCommand("link other@acme.com", mockDbUsers.author.slackUserId!);
-
-    expect(ctx.respond).toHaveBeenCalledWith(
-      expect.objectContaining({
-        text: expect.stringContaining("already linked"),
-      })
-    );
-  });
-
-  it("should reject if email already linked to different Slack user", async () => {
-    vi.mocked(prisma.user.findUnique)
-      .mockResolvedValueOnce(null) // Slack user not linked
-      .mockResolvedValueOnce({
-        ...mockDbUsers.author,
-        slackUserId: "U_OTHER_USER", // Email linked to different Slack user
-      });
-
-    const ctx = await mockApp.runCommand("link john.developer@acme.com", "U_NEW_USER");
-
-    expect(ctx.respond).toHaveBeenCalledWith(
-      expect.objectContaining({
-        text: expect.stringContaining("already linked to another Slack account"),
-      })
-    );
-  });
-
-  it("should reject invalid email format", async () => {
-    const ctx = await mockApp.runCommand("link not-an-email");
-
-    expect(ctx.respond).toHaveBeenCalledWith(
-      expect.objectContaining({
-        text: expect.stringContaining("valid email"),
-      })
-    );
-  });
-
-  it("should show usage when no email provided", async () => {
-    const ctx = await mockApp.runCommand("link");
-
-    expect(ctx.respond).toHaveBeenCalledWith(
-      expect.objectContaining({
-        text: expect.stringContaining("Usage"),
-      })
-    );
-  });
-});
-
 describe("Slack Commands - /pr nudge", () => {
   let mockApp: ReturnType<typeof createMockApp>;
 
@@ -539,7 +432,6 @@ describe("Slack Commands - /pr help", () => {
     expect(blocksJson).toContain("status");
     expect(blocksJson).toContain("my-reviews");
     expect(blocksJson).toContain("my-prs");
-    expect(blocksJson).toContain("link");
     expect(blocksJson).toContain("nudge");
   });
 

@@ -31,6 +31,10 @@ vi.mock("../../src/services/slack.service.js", () => {
       buildNudgeMessage: vi.fn().mockReturnValue({ blocks: [], text: "Nudge" }),
     },
     SlackService: class SlackService {
+      private app: unknown = null;
+      setApp(app: unknown) {
+        this.app = app;
+      }
       sendDM = vi.fn().mockResolvedValue(undefined);
       buildPRCreatedMessage(pr: unknown) {
         return {
@@ -463,7 +467,8 @@ describe("SlackService - Message Formatting", () => {
 describe.skipIf(!process.env.RUN_SLACK_INTEGRATION)(
   "SlackService - Integration Tests (Real Slack)",
   () => {
-    let slackService: SlackService;
+    // Use 'any' to hold the real SlackService instance (bypassing mock)
+    let realSlackService: InstanceType<typeof SlackService>;
     let adminUserId: string;
 
     beforeEach(async () => {
@@ -473,6 +478,12 @@ describe.skipIf(!process.env.RUN_SLACK_INTEGRATION)(
       if (!adminUserId) {
         throw new Error("SLACK_ADMIN_USER_ID must be set for integration tests");
       }
+
+      // Import the REAL SlackService, bypassing the mock
+      const actualModule = await vi.importActual<typeof import("../../src/services/slack.service.js")>(
+        "../../src/services/slack.service.js"
+      );
+      const RealSlackService = actualModule.SlackService;
 
       // Create real Slack app
       const { App } = await import("@slack/bolt");
@@ -484,8 +495,8 @@ describe.skipIf(!process.env.RUN_SLACK_INTEGRATION)(
         socketMode: true,
       });
 
-      slackService = new SlackService();
-      slackService.setApp(app);
+      realSlackService = new RealSlackService();
+      realSlackService.setApp(app);
     });
 
     it("should send test DM to admin user", async () => {
@@ -513,22 +524,22 @@ describe.skipIf(!process.env.RUN_SLACK_INTEGRATION)(
 
       // This will actually send to Slack
       await expect(
-        slackService.sendDM(adminUserId, testMessage.blocks, testMessage.text)
+        realSlackService.sendDM(adminUserId, testMessage.blocks, testMessage.text)
       ).resolves.not.toThrow();
     });
 
     it("should send PR Created notification format to admin", async () => {
       const mockPR = createPRWithReviewers(mockDbPRs.openPR, mockDbUsers.author, []);
-      const { blocks, text } = slackService.buildPRCreatedMessage(mockPR);
+      const { blocks, text } = realSlackService.buildPRCreatedMessage(mockPR);
 
-      await expect(slackService.sendDM(adminUserId, blocks, text)).resolves.not.toThrow();
+      await expect(realSlackService.sendDM(adminUserId, blocks, text)).resolves.not.toThrow();
     });
 
     it("should send All Approved notification format to admin", async () => {
       const mockPR = createPRWithReviewers(mockDbPRs.openPR, mockDbUsers.author, []);
-      const { blocks, text } = slackService.buildAllApprovedMessage(mockPR);
+      const { blocks, text } = realSlackService.buildAllApprovedMessage(mockPR);
 
-      await expect(slackService.sendDM(adminUserId, blocks, text)).resolves.not.toThrow();
+      await expect(realSlackService.sendDM(adminUserId, blocks, text)).resolves.not.toThrow();
     });
   }
 );

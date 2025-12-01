@@ -4,10 +4,10 @@ import { config } from "../config/env.js";
 
 export function registerAdminCommand(app: App): void {
   app.command("/pr", async ({ command, ack, respond }) => {
-    const args = command.text.trim().split(/\s+/);
-    const subcommand = args[0]?.toLowerCase();
+    const text = command.text.trim();
+    const firstWord = text.split(/\s+/)[0]?.toLowerCase();
 
-    if (subcommand !== "admin") return;
+    if (firstWord !== "admin") return;
 
     await ack();
 
@@ -19,7 +19,9 @@ export function registerAdminCommand(app: App): void {
       return;
     }
 
-    const adminAction = args[1]?.toLowerCase();
+    const afterAdmin = text.slice(5).trim();
+    const adminAction = afterAdmin.split(/\s+/)[0]?.toLowerCase();
+    const restOfArgs = afterAdmin.slice(adminAction?.length || 0).trim();
 
     switch (adminAction) {
       case "stats":
@@ -29,7 +31,10 @@ export function registerAdminCommand(app: App): void {
         await handleUsers(respond);
         break;
       case "link":
-        await handleForceLink(args.slice(2), respond);
+        await handleForceLink(restOfArgs, respond);
+        break;
+      case "merge":
+        await handleMerge(restOfArgs, respond);
         break;
       case "events":
         await handleEvents(respond);
@@ -97,16 +102,27 @@ async function handleUsers(respond: RespondFn): Promise<void> {
   await respond({ response_type: "ephemeral", blocks, text: "Users" });
 }
 
+function parseQuotedArgs(input: string): string[] {
+  const args: string[] = [];
+  const regex = /"([^"]+)"|(\S+)/g;
+  let match;
+  while ((match = regex.exec(input)) !== null) {
+    args.push(match[1] || match[2]);
+  }
+  return args;
+}
+
 async function handleForceLink(
-  args: string[],
+  argsStr: string,
   respond: RespondFn
 ): Promise<void> {
-  const [bitbucketEmail, slackUserId] = args;
+  const args = parseQuotedArgs(argsStr);
+  const [nameOrEmail, slackUserId] = args;
 
-  if (!bitbucketEmail || !slackUserId) {
+  if (!nameOrEmail || !slackUserId) {
     await respond({
       response_type: "ephemeral",
-      text: "Usage: `/pr admin link <bitbucket-email> <slack-user-id>`\nExample: `/pr admin link john@example.com U12345678`",
+      text: "Usage: `/pr admin link \"Display Name\" @slack-user`\nExample: `/pr admin link \"Tomasz Torbus\" @tomek`",
     });
     return;
   }
@@ -116,8 +132,9 @@ async function handleForceLink(
   const user = await prisma.user.findFirst({
     where: {
       OR: [
-        { bitbucketEmail },
-        { bitbucketUuid: bitbucketEmail },
+        { displayName: { equals: nameOrEmail, mode: "insensitive" } },
+        { bitbucketEmail: nameOrEmail },
+        { bitbucketUuid: nameOrEmail },
       ],
     },
   });
@@ -125,7 +142,7 @@ async function handleForceLink(
   if (!user) {
     await respond({
       response_type: "ephemeral",
-      text: `:x: No user found with email/uuid: ${bitbucketEmail}`,
+      text: `:x: No user found matching: ${nameOrEmail}`,
     });
     return;
   }
@@ -137,7 +154,97 @@ async function handleForceLink(
 
   await respond({
     response_type: "ephemeral",
-    text: `:white_check_mark: Linked *${user.displayName}* (${bitbucketEmail}) to <@${cleanSlackId}>`,
+    text: `:white_check_mark: Linked *${user.displayName}* to <@${cleanSlackId}>`,
+  });
+}
+
+async function handleMerge(
+  argsStr: string,
+  respond: RespondFn
+): Promise<void> {
+  const args = parseQuotedArgs(argsStr);
+  const [sourceName, targetName] = args;
+
+  if (!sourceName || !targetName) {
+    await respond({
+      response_type: "ephemeral",
+      text: "Usage: `/pr admin merge \"Source Name\" \"Target Name\"`\nMerges source into target (keeps target, deletes source)",
+    });
+    return;
+  }
+
+  const sourceUser = await prisma.user.findFirst({
+    where: { displayName: { equals: sourceName, mode: "insensitive" } },
+  });
+
+  const targetUser = await prisma.user.findFirst({
+    where: { displayName: { equals: targetName, mode: "insensitive" } },
+  });
+
+  if (!sourceUser) {
+    await respond({
+      response_type: "ephemeral",
+      text: `:x: Source user not found: ${sourceName}`,
+    });
+    return;
+  }
+
+  if (!targetUser) {
+    await respond({
+      response_type: "ephemeral",
+      text: `:x: Target user not found: ${targetName}`,
+    });
+    return;
+  }
+
+  if (sourceUser.id === targetUser.id) {
+    await respond({
+      response_type: "ephemeral",
+      text: `:x: Source and target are the same user`,
+    });
+    return;
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.pullRequest.updateMany({
+      where: { authorId: sourceUser.id },
+      data: { authorId: targetUser.id },
+    });
+
+    await tx.pRReviewer.updateMany({
+      where: { userId: sourceUser.id },
+      data: { userId: targetUser.id },
+    });
+
+    await tx.pREvent.updateMany({
+      where: { actorId: sourceUser.id },
+      data: { actorId: targetUser.id },
+    });
+
+    await tx.user.delete({ where: { id: sourceUser.id } });
+
+    const updateData: Record<string, string> = {};
+    if (sourceUser.bitbucketUuid && !targetUser.bitbucketUuid) {
+      updateData.bitbucketUuid = sourceUser.bitbucketUuid;
+    }
+    if (sourceUser.bitbucketEmail && !targetUser.bitbucketEmail) {
+      updateData.bitbucketEmail = sourceUser.bitbucketEmail;
+    }
+    if (sourceUser.slackUserId && !targetUser.slackUserId) {
+      updateData.slackUserId = sourceUser.slackUserId;
+    }
+
+    if (Object.keys(updateData).length > 0) {
+      await tx.user.update({
+        where: { id: targetUser.id },
+        data: updateData,
+      });
+    }
+  });
+
+  await respond({
+    response_type: "ephemeral",
+    text: `:white_check_mark: Merged *${sourceUser.displayName}* into *${targetUser.displayName}*`,
   });
 }
 
@@ -185,7 +292,8 @@ async function showAdminHelp(respond: RespondFn): Promise<void> {
         text: "*Available admin commands:*\n\n" +
           "`/pr admin stats` - View system statistics\n" +
           "`/pr admin users` - List recent users\n" +
-          "`/pr admin link <email> <slack-id>` - Force link a user\n" +
+          "`/pr admin link \"Name\" @user` - Link user by display name\n" +
+          "`/pr admin merge \"Source\" \"Target\"` - Merge duplicate users\n" +
           "`/pr admin events` - View recent events",
       },
     },

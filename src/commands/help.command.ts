@@ -24,13 +24,6 @@ export function registerHelpCommand(app: App): void {
         type: "section",
         text: {
           type: "mrkdwn",
-          text: "*`/pr link <email>`*\nLink your Slack account to your Bitbucket email to receive notifications.",
-        },
-      },
-      {
-        type: "section",
-        text: {
-          type: "mrkdwn",
           text: "*`/pr my-reviews`*\nList all PRs waiting for your review.",
         },
       },
