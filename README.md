@@ -119,28 +119,7 @@ SLACK_APP_TOKEN=xapp-...       # Basic Information → App-Level Tokens (if usin
 
 Repeat for each repository you want to track.
 
-### 5. Bitbucket API Token (Optional)
-
-If you need to fetch additional PR data via Bitbucket API:
-
-1. Go to [Atlassian Account Settings](https://id.atlassian.com/manage-profile/security) → **Security** → **Create and manage API tokens**
-2. Click **Create API token with scopes**
-3. Configure:
-   - Name: `PR Tracker`
-   - Expiry: Choose appropriate duration
-   - Application: `Bitbucket`
-   - Scopes: Select `Repositories: Read` and `Pull requests: Read`
-4. Copy the token immediately (it won't be shown again)
-5. Add to `.env`:
-   ```
-   BITBUCKET_WORKSPACE=your-workspace
-   BITBUCKET_EMAIL=your-atlassian-email@example.com
-   BITBUCKET_API_TOKEN=your-api-token
-   ```
-
-Note: API tokens use your Atlassian account email for authentication, not your username.
-
-### 6. Start the Application
+### 5. Start the Application
 
 #### Using Docker (Recommended)
 
@@ -162,26 +141,6 @@ npm run db:migrate
 # Start in development mode
 npm run dev
 ```
-
-### 7. Expose to Internet
-
-The app needs to be accessible from the internet for webhooks. Options:
-
-#### Cloudflare Tunnel (Recommended for production)
-
-```bash
-cloudflared tunnel create pr-tracker
-cloudflared tunnel route dns pr-tracker pr.yourdomain.com
-cloudflared tunnel run pr-tracker
-```
-
-#### ngrok (For development)
-
-```bash
-ngrok http 3000
-```
-
-Update your Slack app and Bitbucket webhook URLs with the public URL.
 
 ## Usage
 
@@ -225,9 +184,6 @@ Users are automatically linked when their Bitbucket email matches their Slack em
 | `SLACK_SIGNING_SECRET` | Yes | Slack app signing secret |
 | `SLACK_APP_TOKEN` | No | Slack app token for Socket Mode (`xapp-...`) |
 | `SLACK_ADMIN_USER_ID` | No | Slack user ID for admin commands (`U...`) |
-| `BITBUCKET_WORKSPACE` | No | Your Bitbucket workspace slug |
-| `BITBUCKET_EMAIL` | No | Atlassian account email (for API calls) |
-| `BITBUCKET_API_TOKEN` | No | Bitbucket API token (replaces app passwords) |
 | `WEBHOOK_SECRET` | No | Secret for validating Bitbucket webhooks |
 | `PORT` | No | Server port (default: 3000) |
 

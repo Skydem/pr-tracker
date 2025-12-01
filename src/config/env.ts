@@ -19,12 +19,6 @@ export const config = {
     url: requireEnv("DATABASE_URL"),
   },
 
-  bitbucket: {
-    workspace: optionalEnv("BITBUCKET_WORKSPACE", ""),
-    email: optionalEnv("BITBUCKET_EMAIL", ""),
-    apiToken: optionalEnv("BITBUCKET_API_TOKEN", ""),
-  },
-
   slack: {
     botToken: requireEnv("SLACK_BOT_TOKEN"),
     signingSecret: requireEnv("SLACK_SIGNING_SECRET"),
