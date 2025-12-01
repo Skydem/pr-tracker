@@ -1,4 +1,7 @@
 import { vi, beforeEach, afterEach } from "vitest";
+import { config } from "dotenv";
+
+config();
 
 vi.mock("../src/db/client.js", () => ({
   prisma: {
