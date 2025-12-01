@@ -4,24 +4,33 @@ Pull Request tracking application that monitors Bitbucket Cloud PRs and sends Sl
 
 ## Features
 
-- Tracks all PR events (created, updated, approved, changes requested, comments, merged)
+- Tracks PR events (created, updated, approved, changes requested, comments, merged, declined)
 - Sends Slack DM notifications to relevant team members
 - Slash commands to check PR status and pending reviews
-- User mapping between Bitbucket and Slack accounts
+- Automatic user linking via email matching between Bitbucket and Slack
+- Mute/unmute notifications per user
+- Admin commands for user management
+
+## Tech Stack
+
+- **Runtime**: Node.js 22+ with TypeScript
+- **Database**: PostgreSQL with Prisma ORM
+- **Slack**: Bolt SDK with Socket Mode support
+- **Testing**: Vitest
 
 ## Prerequisites
 
 - Node.js 22+
 - Docker and Docker Compose
-- Bitbucket Cloud workspace with admin access
+- Bitbucket Cloud workspace with webhook access
 - Slack workspace with permission to create apps
 
-## Setup
+## Quick Start
 
 ### 1. Clone and Install
 
 ```bash
-git clone https://github.com/Skydem/pr-tracker.git
+git clone <repository-url>
 cd pr-tracker
 npm install
 ```
@@ -67,7 +76,7 @@ Navigate to **Slash Commands** and create:
 - Command: `/pr`
 - Request URL: `https://your-domain.com/slack/events`
 - Description: `PR Tracker commands`
-- Usage Hint: `[status|my-reviews|my-prs|nudge|mute|help]`
+- Usage Hint: `[status|my-reviews|my-prs|nudge|mute|unmute|help]`
 
 #### Enable Socket Mode (Optional, for local development)
 
@@ -251,6 +260,23 @@ curl http://localhost:3000/health
 2. Verify `DATABASE_URL` in `.env` is correct
 3. Run migrations: `npm run db:migrate`
 
+## Development
+
+```bash
+npm run dev          # Start with hot reload
+npm test             # Run tests
+npm run test:watch   # Run tests in watch mode
+npm run build        # Compile TypeScript
+```
+
+### Database Commands
+
+```bash
+npm run db:generate  # Regenerate Prisma client
+npm run db:migrate   # Create and apply migrations
+npm run db:push      # Push schema changes (dev only)
+```
+
 ## License
 
-ISC
+[ISC](LICENSE)

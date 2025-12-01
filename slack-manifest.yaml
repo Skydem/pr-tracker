@@ -14,7 +14,7 @@ features:
   slash_commands:
     - command: /pr
       description: PR Tracker commands - check status, reviews, and manage PRs
-      usage_hint: "[status|my-reviews|my-prs|link|nudge|mute|unmute|help]"
+      usage_hint: "[status|my-reviews|my-prs|nudge|mute|unmute|help]"
       should_escape: false
 
 oauth_config:
