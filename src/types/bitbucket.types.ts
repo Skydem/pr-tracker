@@ -21,6 +21,13 @@ export interface BitbucketBranch {
   name: string;
 }
 
+export interface BitbucketParticipant {
+  user: BitbucketUser;
+  role: "REVIEWER" | "PARTICIPANT";
+  approved: boolean;
+  state: "approved" | "changes_requested" | null;
+}
+
 export interface BitbucketPullRequest {
   id: number;
   title: string;
@@ -35,7 +42,8 @@ export interface BitbucketPullRequest {
     repository: BitbucketRepository;
   };
   author: BitbucketUser;
-  reviewers: BitbucketUser[];
+  reviewers?: BitbucketUser[];
+  participants?: BitbucketParticipant[];
   links: {
     html: {
       href: string;

@@ -1,6 +1,8 @@
 import type { App } from "@slack/bolt";
 import { prisma } from "../db/client.js";
 import { config } from "../config/env.js";
+import { bitbucketApiService } from "../services/bitbucket-api.service.js";
+import { prService } from "../services/pr.service.js";
 
 export function registerAdminCommand(app: App): void {
   app.command("/pr", async ({ command, ack, respond }) => {
@@ -38,6 +40,9 @@ export function registerAdminCommand(app: App): void {
         break;
       case "events":
         await handleEvents(respond);
+        break;
+      case "init":
+        await handleInit(respond);
         break;
       default:
         await showAdminHelp(respond);
@@ -278,6 +283,57 @@ async function handleEvents(respond: RespondFn): Promise<void> {
   await respond({ response_type: "ephemeral", blocks, text: "Events" });
 }
 
+async function handleInit(respond: RespondFn): Promise<void> {
+  if (!bitbucketApiService.isConfigured()) {
+    await respond({
+      response_type: "ephemeral",
+      text: ":x: Bitbucket API not configured. Set BITBUCKET_WORKSPACE, BITBUCKET_EMAIL, BITBUCKET_API_TOKEN, and BITBUCKET_REPOS in .env",
+    });
+    return;
+  }
+
+  await respond({
+    response_type: "ephemeral",
+    text: `:hourglass: Importing PRs from ${config.bitbucket.repos.length} repositories...`,
+  });
+
+  let totalPRs = 0;
+  const results: string[] = [];
+
+  for (const repoSlug of config.bitbucket.repos) {
+    try {
+      const prs = await bitbucketApiService.getPullRequests(repoSlug);
+
+      for (const pr of prs) {
+        await prService.createOrUpdatePR(pr, config.bitbucket.workspace);
+      }
+
+      totalPRs += prs.length;
+      results.push(`*${repoSlug}*: ${prs.length} PRs`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      results.push(`*${repoSlug}*: :x: ${message}`);
+    }
+  }
+
+  const blocks = [
+    {
+      type: "header",
+      text: { type: "plain_text", text: "Admin: Init Complete" },
+    },
+    { type: "divider" },
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: `Imported *${totalPRs}* open PRs:\n\n${results.join("\n")}`,
+      },
+    },
+  ];
+
+  await respond({ response_type: "ephemeral", blocks, text: "Init complete" });
+}
+
 async function showAdminHelp(respond: RespondFn): Promise<void> {
   const blocks = [
     {
@@ -294,7 +350,8 @@ async function showAdminHelp(respond: RespondFn): Promise<void> {
           "`/pr admin users` - List recent users\n" +
           "`/pr admin link \"Name\" @user` - Link user by display name\n" +
           "`/pr admin merge \"Source\" \"Target\"` - Merge duplicate users\n" +
-          "`/pr admin events` - View recent events",
+          "`/pr admin events` - View recent events\n" +
+          "`/pr admin init` - Import open PRs from Bitbucket",
       },
     },
   ];

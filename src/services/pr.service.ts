@@ -10,6 +10,7 @@ import type {
 import type {
   BitbucketPullRequest,
   BitbucketUser,
+  BitbucketParticipant,
 } from "../types/bitbucket.types.js";
 
 export interface PRWithReviewers extends PullRequest {
@@ -69,14 +70,15 @@ export class PRService {
       });
     }
 
-    await this.syncReviewers(pr.id, prData.reviewers);
+    await this.syncReviewers(pr.id, prData.reviewers ?? [], prData.participants);
 
     return this.getPRWithReviewers(pr.id);
   }
 
   private async syncReviewers(
     pullRequestId: string,
-    reviewers: BitbucketUser[]
+    reviewers: BitbucketUser[],
+    participants?: BitbucketParticipant[]
   ): Promise<void> {
     const existingReviewers = await prisma.pRReviewer.findMany({
       where: { pullRequestId },
@@ -112,6 +114,33 @@ export class PRService {
 
     if (removedIds.length > 0) {
       await prisma.pRReviewer.deleteMany({ where: { id: { in: removedIds } } });
+    }
+
+    if (participants) {
+      await this.syncReviewerStatuses(pullRequestId, participants);
+    }
+  }
+
+  private async syncReviewerStatuses(
+    pullRequestId: string,
+    participants: BitbucketParticipant[]
+  ): Promise<void> {
+    const reviewerParticipants = participants.filter((p) => p.role === "REVIEWER");
+
+    for (const participant of reviewerParticipants) {
+      const status = this.mapParticipantState(participant.state);
+      await this.updateReviewerStatus(pullRequestId, participant.user.uuid, status);
+    }
+  }
+
+  private mapParticipantState(state: "approved" | "changes_requested" | null): ReviewStatus {
+    switch (state) {
+      case "approved":
+        return "APPROVED";
+      case "changes_requested":
+        return "CHANGES_REQUESTED";
+      default:
+        return "PENDING";
     }
   }
 

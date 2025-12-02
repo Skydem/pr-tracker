@@ -27,4 +27,14 @@ export const config = {
   },
 
   webhookSecret: optionalEnv("WEBHOOK_SECRET", ""),
+
+  bitbucket: {
+    workspace: optionalEnv("BITBUCKET_WORKSPACE", ""),
+    email: optionalEnv("BITBUCKET_EMAIL", ""),
+    apiToken: optionalEnv("BITBUCKET_API_TOKEN", ""),
+    repos: optionalEnv("BITBUCKET_REPOS", "")
+      .split(",")
+      .map((r) => r.trim())
+      .filter(Boolean),
+  },
 };

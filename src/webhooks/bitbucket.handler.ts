@@ -112,7 +112,7 @@ async function handlePRCreated(payload: BitbucketWebhookPayload): Promise<void> 
 
   await prService.logEvent(pr.id, "PR_CREATED", payload.actor.uuid, {
     title: payload.pullrequest.title,
-    reviewers: payload.pullrequest.reviewers.map((r) => r.display_name),
+    reviewers: (payload.pullrequest.reviewers ?? []).map((r) => r.display_name),
   });
 
   await notificationService.notifyReviewersOnPRCreated(pr);
