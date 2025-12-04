@@ -11,15 +11,37 @@ export class NotificationService {
     return user?.notificationsMuted ?? false;
   }
 
+  private async getWatchers(excludeSlackUserIds: string[] = []): Promise<string[]> {
+    const { prisma } = await import("../db/client.js");
+    const watchers = await prisma.user.findMany({
+      where: {
+        isWatcher: true,
+        notificationsMuted: false,
+        slackUserId: { not: null },
+      },
+      select: { slackUserId: true },
+    });
+    return watchers
+      .map((w) => w.slackUserId!)
+      .filter((id) => !excludeSlackUserIds.includes(id));
+  }
+
   async notifyReviewersOnPRCreated(pr: PRWithReviewers): Promise<void> {
     try {
       const { blocks, text } = slackService.buildPRCreatedMessage(pr);
+      const notifiedSlackIds: string[] = [];
 
       for (const reviewer of pr.reviewers) {
         const slackUserId = reviewer.user.slackUserId;
         if (slackUserId && !(await this.isUserMuted(slackUserId))) {
           await slackService.sendDM(slackUserId, blocks, text);
+          notifiedSlackIds.push(slackUserId);
         }
+      }
+
+      const watchers = await this.getWatchers(notifiedSlackIds);
+      for (const watcherSlackId of watchers) {
+        await slackService.sendDM(watcherSlackId, blocks, text);
       }
     } catch (error) {
       console.error(`[NotificationService] Failed to notify reviewers for PR ${pr.id}:`, error);
@@ -71,12 +93,19 @@ export class NotificationService {
       const allApproved = await prService.areAllReviewersApproved(pr.id);
       if (!allApproved) return;
 
-      const authorSlackId = pr.author.slackUserId;
-      if (!authorSlackId || (await this.isUserMuted(authorSlackId))) return;
-
       const { blocks, text } = slackService.buildAllApprovedMessage(pr);
+      const notifiedSlackIds: string[] = [];
 
-      await slackService.sendDM(authorSlackId, blocks, text);
+      const authorSlackId = pr.author.slackUserId;
+      if (authorSlackId && !(await this.isUserMuted(authorSlackId))) {
+        await slackService.sendDM(authorSlackId, blocks, text);
+        notifiedSlackIds.push(authorSlackId);
+      }
+
+      const watchers = await this.getWatchers(notifiedSlackIds);
+      for (const watcherSlackId of watchers) {
+        await slackService.sendDM(watcherSlackId, blocks, text);
+      }
     } catch (error) {
       console.error(`[NotificationService] Failed to notify author on all approved for PR ${pr.id}:`, error);
     }

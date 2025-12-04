@@ -56,6 +56,13 @@ export function registerHelpCommand(app: App): void {
         },
       },
       {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: "*`/pr watch`* / *`/pr unwatch`*\nSubscribe to all PR notifications (created & fully approved). For managers and observers.",
+        },
+      },
+      {
         type: "divider",
       },
       {

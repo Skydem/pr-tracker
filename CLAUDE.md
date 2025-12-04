@@ -14,11 +14,14 @@ npm run test:coverage # Run tests with coverage report
 
 # Database
 npm run db:generate  # Generate Prisma client after schema changes
-npm run db:migrate   # Create and apply migrations
 npm run db:push      # Push schema changes (dev only, no migration)
 
 # Docker
-docker-compose up -d # Start PostgreSQL + app
+docker compose up -d    # Start PostgreSQL + app
+docker compose logs app # View app logs
+
+# Deployment (production runs in this directory)
+./deploy.sh          # Rebuild, push schema, restart app
 ```
 
 Run a single test file:
@@ -33,20 +36,20 @@ PR Tracker receives Bitbucket Cloud webhooks, logs events to PostgreSQL, and sen
 ### Request Flow
 
 ```
-Bitbucket Webhook � /webhooks/bitbucket � bitbucket.handler.ts
-                                              �
-                                         pr.service.ts � Database (Prisma)
-                                              �
-                                    notification.service.ts � slack.service.ts � Slack DMs
+Bitbucket Webhook → /webhooks/bitbucket → bitbucket.handler.ts
+                                              ↓
+                                         pr.service.ts → Database (Prisma)
+                                              ↓
+                                    notification.service.ts → slack.service.ts → Slack DMs
 
-Slack Command � /slack/events � commands/*.command.ts � pr.service.ts � Response
+Slack Command → /slack/events → commands/*.command.ts → pr.service.ts → Response
 ```
 
 ### Key Services
 
 - **UserService** (`src/services/user.service.ts`): Maps Bitbucket users to Slack users. Auto-links by email matching, falls back to fuzzy name matching, or manual `/pr admin link` command.
 - **PRService** (`src/services/pr.service.ts`): CRUD for pull requests and reviewers. Tracks reviewer status (PENDING/APPROVED/CHANGES_REQUESTED).
-- **NotificationService** (`src/services/notification.service.ts`): Determines who to notify based on event type and sends via SlackService.
+- **NotificationService** (`src/services/notification.service.ts`): Determines who to notify based on event type. Also notifies "watchers" (observers who receive all PR created/approved events).
 - **SlackService** (`src/services/slack.service.ts`): Builds Block Kit messages and sends DMs.
 
 ### Webhook Events Handled
@@ -55,11 +58,11 @@ Slack Command � /slack/events � commands/*.command.ts � pr.service.ts � 
 
 ### Slack Commands
 
-All commands use `/pr` prefix: `status <ws/repo/id>`, `my-reviews`, `my-prs`, `nudge <ws/repo/id>`, `mute`, `unmute`, `help`, `admin` (requires `SLACK_ADMIN_USER_ID`)
+All commands use `/pr` prefix: `status <ws/repo/id>`, `my-reviews`, `my-prs`, `nudge <ws/repo/id>`, `mute`, `unmute`, `watch`, `unwatch`, `help`, `admin` (requires `SLACK_ADMIN_USER_ID`)
 
 ### Database Models
 
-- **User**: Links bitbucketUuid � slackUserId
+- **User**: Links bitbucketUuid ↔ slackUserId. Has `isWatcher` flag for observers (management) who receive all PR notifications.
 - **PullRequest**: Unique by (bitbucketId, repositorySlug, workspaceSlug)
 - **PRReviewer**: Junction table with review status
 - **PREvent**: Audit log of all PR events
@@ -74,4 +77,7 @@ Tests mock Prisma client via `tests/setup.ts`. Services are tested in isolation 
 - `tests/fixtures/bitbucket-payloads.ts` - Realistic Bitbucket webhook payloads with test users/repos
 
 **Vitest note:** `vi.mock()` calls are hoisted to top of file. Variables referenced in mock factories must be defined inside the factory function, not outside.
-- never add comments, code should be self explanatory with clear, understandable variable, function names
+
+## Code Style
+
+- Never add comments - code should be self-explanatory with clear, understandable variable and function names

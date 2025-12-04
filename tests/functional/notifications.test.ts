@@ -91,6 +91,7 @@ vi.mock("../../src/db/client.js", () => ({
   prisma: {
     user: {
       findUnique: vi.fn(),
+      findMany: vi.fn().mockResolvedValue([]),
     },
   },
 }));

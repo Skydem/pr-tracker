@@ -14,6 +14,7 @@ model User {
   slackUserId        String?  @unique
   displayName        String
   notificationsMuted Boolean  @default(false)
+  isWatcher          Boolean  @default(false)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
@@ -87,3 +88,4 @@ enum EventType {
   PR_MERGED
   PR_DECLINED
 }
+

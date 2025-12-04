@@ -28,6 +28,7 @@ vi.mock("../src/services/user.service.js", () => ({
   },
 }));
 
+import { prisma } from "../src/db/client.js";
 import { prService } from "../src/services/pr.service.js";
 import { slackService } from "../src/services/slack.service.js";
 
@@ -71,6 +72,8 @@ describe("NotificationService", () => {
   beforeEach(() => {
     notificationService = new NotificationService();
     vi.clearAllMocks();
+    vi.mocked(prisma.user.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
   });
 
   describe("notifyReviewersOnPRCreated", () => {
@@ -204,6 +207,64 @@ describe("NotificationService", () => {
       const count = await notificationService.nudgeReviewers(mockPR);
 
       expect(count).toBe(0);
+    });
+  });
+
+  describe("watcher notifications", () => {
+    it("should notify watchers on PR created in addition to reviewers", async () => {
+      vi.mocked(prisma.user.findMany).mockResolvedValue([
+        { slackUserId: "slack-watcher1" },
+        { slackUserId: "slack-watcher2" },
+      ] as never);
+
+      await notificationService.notifyReviewersOnPRCreated(mockPR);
+
+      expect(slackService.sendDM).toHaveBeenCalledTimes(4);
+      expect(slackService.sendDM).toHaveBeenCalledWith("slack-r1", [], "test");
+      expect(slackService.sendDM).toHaveBeenCalledWith("slack-r2", [], "test");
+      expect(slackService.sendDM).toHaveBeenCalledWith("slack-watcher1", [], "test");
+      expect(slackService.sendDM).toHaveBeenCalledWith("slack-watcher2", [], "test");
+    });
+
+    it("should not send duplicate notification to watcher who is also reviewer", async () => {
+      vi.mocked(prisma.user.findMany).mockResolvedValue([
+        { slackUserId: "slack-r1" },
+        { slackUserId: "slack-watcher1" },
+      ] as never);
+
+      await notificationService.notifyReviewersOnPRCreated(mockPR);
+
+      expect(slackService.sendDM).toHaveBeenCalledTimes(3);
+      expect(slackService.sendDM).toHaveBeenCalledWith("slack-r1", [], "test");
+      expect(slackService.sendDM).toHaveBeenCalledWith("slack-r2", [], "test");
+      expect(slackService.sendDM).toHaveBeenCalledWith("slack-watcher1", [], "test");
+    });
+
+    it("should notify watchers on all approved in addition to author", async () => {
+      vi.mocked(prService.areAllReviewersApproved).mockResolvedValue(true);
+      vi.mocked(prisma.user.findMany).mockResolvedValue([
+        { slackUserId: "slack-watcher1" },
+      ] as never);
+
+      await notificationService.notifyAuthorOnAllApproved(mockPR);
+
+      expect(slackService.sendDM).toHaveBeenCalledTimes(2);
+      expect(slackService.sendDM).toHaveBeenCalledWith("slack-author", [], "test");
+      expect(slackService.sendDM).toHaveBeenCalledWith("slack-watcher1", [], "test");
+    });
+
+    it("should not send duplicate notification to watcher who is also author", async () => {
+      vi.mocked(prService.areAllReviewersApproved).mockResolvedValue(true);
+      vi.mocked(prisma.user.findMany).mockResolvedValue([
+        { slackUserId: "slack-author" },
+        { slackUserId: "slack-watcher1" },
+      ] as never);
+
+      await notificationService.notifyAuthorOnAllApproved(mockPR);
+
+      expect(slackService.sendDM).toHaveBeenCalledTimes(2);
+      expect(slackService.sendDM).toHaveBeenCalledWith("slack-author", [], "test");
+      expect(slackService.sendDM).toHaveBeenCalledWith("slack-watcher1", [], "test");
     });
   });
 });

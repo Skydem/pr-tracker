@@ -8,7 +8,7 @@ vi.mock("../src/db/client.js", () => ({
     user: {
       findFirst: vi.fn(),
       findUnique: vi.fn(),
-      findMany: vi.fn(),
+      findMany: vi.fn().mockResolvedValue([]),
       create: vi.fn(),
       update: vi.fn(),
       updateMany: vi.fn(),

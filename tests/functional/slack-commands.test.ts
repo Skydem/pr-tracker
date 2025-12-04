@@ -679,3 +679,160 @@ describe("Slack Commands - /pr mute and /pr unmute", () => {
     });
   });
 });
+
+// =============================================================================
+// Watch/Unwatch Commands Tests
+// =============================================================================
+
+import { registerSubscribeCommand } from "../../src/commands/subscribe.command.js";
+
+function createMockAppWithSlackClient() {
+  const handlers: Array<(args: SlackCommandMiddlewareArgs) => Promise<void>> = [];
+
+  const app = {
+    command: vi.fn().mockImplementation((_cmd: string, handler: (args: SlackCommandMiddlewareArgs) => Promise<void>) => {
+      handlers.push(handler);
+    }),
+    client: {
+      users: {
+        info: vi.fn().mockResolvedValue({
+          user: { real_name: "New Watcher", name: "newwatcher" },
+        }),
+      },
+    },
+  } as unknown as App;
+
+  return {
+    app,
+    handlers,
+    async runCommand(text: string, userId?: string) {
+      const ctx = createMockSlackContext(text, userId);
+      for (const handler of handlers) {
+        await handler(ctx);
+      }
+      return ctx;
+    },
+  };
+}
+
+describe("Slack Commands - /pr watch and /pr unwatch", () => {
+  let mockApp: ReturnType<typeof createMockAppWithSlackClient>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockApp = createMockAppWithSlackClient();
+    registerSubscribeCommand(mockApp.app);
+  });
+
+  describe("watch command", () => {
+    it("should create new user and enable watching for unknown user", async () => {
+      vi.mocked(prisma.user.findUnique).mockResolvedValueOnce(null);
+      vi.mocked(prisma.user.create).mockResolvedValueOnce({
+        id: "new-user-id",
+        bitbucketUuid: null,
+        bitbucketEmail: null,
+        slackUserId: "U_NEW_WATCHER",
+        displayName: "New Watcher",
+        notificationsMuted: false,
+        isWatcher: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      const ctx = await mockApp.runCommand("watch", "U_NEW_WATCHER");
+
+      expect(prisma.user.create).toHaveBeenCalledWith({
+        data: {
+          slackUserId: "U_NEW_WATCHER",
+          displayName: "New Watcher",
+          isWatcher: true,
+        },
+      });
+      expect(ctx.respond).toHaveBeenCalledWith(
+        expect.objectContaining({
+          text: "You're now watching all PRs",
+        })
+      );
+    });
+
+    it("should enable watching for existing user", async () => {
+      vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({
+        ...mockDbUsers.author,
+        isWatcher: false,
+      });
+      vi.mocked(prisma.user.update).mockResolvedValueOnce({
+        ...mockDbUsers.author,
+        isWatcher: true,
+      });
+
+      const ctx = await mockApp.runCommand("watch", mockDbUsers.author.slackUserId!);
+
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: mockDbUsers.author.id },
+        data: { isWatcher: true },
+      });
+      expect(ctx.respond).toHaveBeenCalledWith(
+        expect.objectContaining({
+          text: "You're now watching all PRs",
+        })
+      );
+    });
+
+    it("should show message if already watching", async () => {
+      vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({
+        ...mockDbUsers.author,
+        isWatcher: true,
+      });
+
+      const ctx = await mockApp.runCommand("watch", mockDbUsers.author.slackUserId!);
+
+      expect(prisma.user.update).not.toHaveBeenCalled();
+      expect(ctx.respond).toHaveBeenCalledWith(
+        expect.objectContaining({
+          text: "You're already watching PRs.",
+        })
+      );
+    });
+  });
+
+  describe("unwatch command", () => {
+    it("should disable watching for user", async () => {
+      vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({
+        ...mockDbUsers.author,
+        isWatcher: true,
+      });
+      vi.mocked(prisma.user.update).mockResolvedValueOnce({
+        ...mockDbUsers.author,
+        isWatcher: false,
+      });
+
+      const ctx = await mockApp.runCommand("unwatch", mockDbUsers.author.slackUserId!);
+
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: mockDbUsers.author.id },
+        data: { isWatcher: false },
+      });
+      expect(ctx.respond).toHaveBeenCalledWith(
+        expect.objectContaining({
+          text: "You've stopped watching PRs",
+        })
+      );
+    });
+
+    it("should show message if not watching", async () => {
+      vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({
+        ...mockDbUsers.author,
+        isWatcher: false,
+      });
+
+      const ctx = await mockApp.runCommand("unwatch", mockDbUsers.author.slackUserId!);
+
+      expect(prisma.user.update).not.toHaveBeenCalled();
+      expect(ctx.respond).toHaveBeenCalledWith(
+        expect.objectContaining({
+          text: "You're not currently watching PRs.",
+        })
+      );
+    });
+  });
+});
