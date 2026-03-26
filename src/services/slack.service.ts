@@ -181,6 +181,34 @@ export class SlackService {
     return { blocks: blocks as unknown as KnownBlock[], text };
   }
 
+  buildBatchedCommentMessage(
+    pr: PRWithReviewers,
+    commenterName: string,
+    commentCount: number
+  ): { blocks: KnownBlock[]; text: string } {
+    const text = `${commenterName} left ${commentCount} comments on "${pr.title}"`;
+    const blocks = [
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `*New Comments*\n<${pr.url}|${pr.title}>`,
+        },
+      },
+      {
+        type: "context",
+        elements: [
+          {
+            type: "mrkdwn",
+            text: `${commenterName} left ${commentCount} comments \u00b7 ${pr.workspaceSlug}/${pr.repositorySlug}`,
+          },
+        ],
+      },
+    ] as const;
+
+    return { blocks: blocks as unknown as KnownBlock[], text };
+  }
+
   buildNudgeMessage(pr: PRWithReviewers): { blocks: KnownBlock[]; text: string } {
     const text = `Reminder: Please review "${pr.title}"`;
     const blocks = [

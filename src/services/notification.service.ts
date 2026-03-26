@@ -137,6 +137,29 @@ export class NotificationService {
     }
   }
 
+  async notifyAuthorOnBatchedComments(
+    pr: PRWithReviewers,
+    commenterUuid: string,
+    commenterName: string,
+    commentCount: number
+  ): Promise<void> {
+    try {
+      const authorUser = await prismaUserById(pr.authorId);
+
+      if (!authorUser?.bitbucketUuid || authorUser.bitbucketUuid === commenterUuid) {
+        return;
+      }
+
+      const authorSlackId = pr.author.slackUserId;
+      if (!authorSlackId || (await this.isUserMuted(authorSlackId))) return;
+
+      const { blocks, text } = slackService.buildBatchedCommentMessage(pr, commenterName, commentCount);
+      await slackService.sendDM(authorSlackId, blocks, text);
+    } catch (error) {
+      console.error(`[NotificationService] Failed to notify author on batched comments for PR ${pr.id}:`, error);
+    }
+  }
+
   async nudgeReviewers(pr: PRWithReviewers): Promise<number> {
     try {
       const pendingReviewers = await prService.getReviewersWithStatus(

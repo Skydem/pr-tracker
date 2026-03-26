@@ -219,9 +219,18 @@ vi.mock("../../src/services/notification.service.js", () => ({
   },
 }));
 
+vi.mock("../../src/services/comment-debouncer.service.js", () => ({
+  commentDebouncer: {
+    bufferComment: vi.fn().mockImplementation(() => {
+      mockCalls.notificationsSent.push("COMMENT_BUFFERED");
+    }),
+  },
+}));
+
 import { prService } from "../../src/services/pr.service.js";
 import { userService } from "../../src/services/user.service.js";
 import { notificationService } from "../../src/services/notification.service.js";
+import { commentDebouncer } from "../../src/services/comment-debouncer.service.js";
 
 // =============================================================================
 // Test Helpers
@@ -514,7 +523,7 @@ describe("PR Lifecycle - Complete Flow", () => {
         testUsers.reviewer1.uuid,
         expect.any(Object)
       );
-      expect(notificationService.notifyAuthorOnComment).toHaveBeenCalled();
+      expect(commentDebouncer.bufferComment).toHaveBeenCalled();
 
       // Step 3: Author responds
       const comment2Res = await sendWebhook(

@@ -5,6 +5,7 @@ import { config } from "../config/env.js";
 import { prService } from "../services/pr.service.js";
 import { userService } from "../services/user.service.js";
 import { notificationService } from "../services/notification.service.js";
+import { commentDebouncer } from "../services/comment-debouncer.service.js";
 import type {
   BitbucketWebhookPayload,
   BitbucketApprovalPayload,
@@ -217,7 +218,7 @@ async function handleCommentCreated(payload: BitbucketCommentPayload): Promise<v
     commenter: payload.comment.user.display_name,
   });
 
-  await notificationService.notifyAuthorOnComment(
+  commentDebouncer.bufferComment(
     pr,
     payload.comment.user.uuid,
     payload.comment.user.display_name
