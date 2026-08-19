@@ -1,0 +1,236 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap">
+  <style>
+    body { margin: 0; }
+    a { color: var(--link); text-decoration: none; }
+    a:hover { color: var(--link-hover); text-decoration: underline; }
+    [data-theme="light"] {
+      --bg: oklch(0.965 0.008 255);
+      --panel: oklch(1 0 0);
+      --panel-2: oklch(0.945 0.010 255);
+      --line: oklch(0.885 0.012 255);
+      --ink: oklch(0.22 0.016 265);
+      --ink-2: oklch(0.46 0.014 265);
+      --ink-3: oklch(0.63 0.012 265);
+      --ok: oklch(0.55 0.14 152);
+      --wait: oklch(0.55 0.14 68);
+      --rere: oklch(0.55 0.14 292);
+      --stop: oklch(0.55 0.14 25);
+      --ok-bg: oklch(0.945 0.045 152);
+      --wait-bg: oklch(0.945 0.045 68);
+      --rere-bg: oklch(0.945 0.045 292);
+      --stop-bg: oklch(0.945 0.045 25);
+      --shadow: 0 1px 2px oklch(0.22 0.016 265 / 0.07), 0 4px 12px oklch(0.22 0.016 265 / 0.05);
+      --link: oklch(0.48 0.13 262);
+      --link-hover: oklch(0.36 0.13 262);
+    }
+    [data-theme="dark"] {
+      --bg: oklch(0.165 0.014 265);
+      --panel: oklch(0.215 0.016 265);
+      --panel-2: oklch(0.255 0.016 265);
+      --line: oklch(0.315 0.016 265);
+      --ink: oklch(0.95 0.008 265);
+      --ink-2: oklch(0.75 0.012 265);
+      --ink-3: oklch(0.59 0.014 265);
+      --ok: oklch(0.75 0.14 152);
+      --wait: oklch(0.75 0.14 68);
+      --rere: oklch(0.75 0.14 292);
+      --stop: oklch(0.75 0.14 25);
+      --ok-bg: oklch(0.305 0.058 152);
+      --wait-bg: oklch(0.305 0.058 68);
+      --rere-bg: oklch(0.305 0.058 292);
+      --stop-bg: oklch(0.305 0.058 25);
+      --shadow: 0 1px 2px oklch(0 0 0 / 0.4), 0 4px 14px oklch(0 0 0 / 0.3);
+      --link: oklch(0.80 0.12 262);
+      --link-hover: oklch(0.90 0.12 262);
+    }
+  </style>
+</helmet>
+<div data-theme="{{ theme }}" style="width: 1280px; height: 860px; background: var(--bg); color: var(--ink); font-family: 'Space Grotesk', system-ui, sans-serif; display: flex; flex-direction: column; overflow: hidden">
+
+  <div style="display: flex; align-items: center; justify-content: space-between; padding: 22px 32px 18px; gap: 24px">
+    <div style="display: flex; flex-direction: column; gap: 3px">
+      <div style="font-size: 24px; font-weight: 700; letter-spacing: -0.015em">What needs a human</div>
+      <div style="font-size: 12px; color: var(--ink-2)">Five open pull requests, sorted by the action they are waiting on</div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px">
+      <div style="padding: 7px 14px; border-radius: 999px; background: var(--ink); color: var(--panel); font-size: 12px; font-weight: 600">Everyone</div>
+      <div style="display: flex; align-items: center; gap: 7px; padding: 5px 13px 5px 5px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line)">
+        <span style="width: 22px; height: 22px; border-radius: 50%; background: var(--panel-2); display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; color: var(--ink-2)">SR</span>
+        <span style="font-size: 12px; color: var(--ink-2)">Sarah</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 7px; padding: 5px 13px 5px 5px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line)">
+        <span style="width: 22px; height: 22px; border-radius: 50%; background: var(--panel-2); display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; color: var(--ink-2)">MT</span>
+        <span style="font-size: 12px; color: var(--ink-2)">Mike</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 7px; padding: 5px 13px 5px 5px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line)">
+        <span style="width: 22px; height: 22px; border-radius: 50%; background: var(--panel-2); display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; color: var(--ink-2)">ES</span>
+        <span style="font-size: 12px; color: var(--ink-2)">Emma</span>
+      </div>
+      <div style="width: 1px; height: 24px; background: var(--line); margin: 0 4px"></div>
+      <div style="display: flex; align-items: center; gap: 7px; padding: 7px 13px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line); font-size: 12px; color: var(--ink-2)">
+        <span>All repos</span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg>
+      </div>
+    </div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; padding: 0 32px; flex-grow: 1; min-height: 0">
+
+    <div style="display: flex; flex-direction: column; gap: 12px; min-width: 0">
+      <div style="display: flex; align-items: center; gap: 9px; padding-bottom: 11px; border-bottom: 2px solid var(--wait)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--wait)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3.2 2"></path></svg>
+        <span style="font-size: 13px; font-weight: 700">Awaiting first review</span>
+        <span style="margin-left: auto; font-family: 'Space Mono', monospace; font-size: 12px; font-weight: 700; color: var(--wait)">1</span>
+      </div>
+
+      <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); padding: 14px; display: flex; flex-direction: column; gap: 11px">
+        <div style="display: flex; align-items: baseline; gap: 8px">
+          <span style="font-family: 'Space Mono', monospace; font-size: 11px; color: var(--ink-3)">#468</span>
+          <span style="font-size: 13px; font-weight: 600; line-height: 1.3; text-wrap: pretty">Bump Prisma to 6.19 and regenerate client</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 7px">
+          <span style="font-family: 'Space Mono', monospace; font-size: 10px; color: var(--ink-3)">backend-api</span>
+          <span style="padding: 2px 7px; border-radius: 5px; background: var(--wait-bg); color: var(--wait); font-size: 9px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase">Stale</span>
+        </div>
+        <div style="height: 1px; background: var(--line)"></div>
+        <div style="display: flex; align-items: center; justify-content: space-between">
+          <div style="display: flex; align-items: center; gap: 6px">
+            <span style="width: 22px; height: 22px; border-radius: 50%; background: var(--wait); color: var(--panel); display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700">AE</span>
+            <span style="font-size: 11px; color: var(--ink-3)">not on Slack</span>
+          </div>
+          <span style="font-family: 'Space Mono', monospace; font-size: 11px; font-weight: 700; color: var(--wait)">6d</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 12px; min-width: 0">
+      <div style="display: flex; align-items: center; gap: 9px; padding-bottom: 11px; border-bottom: 2px solid var(--rere)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--rere)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"></path><path d="M21 4v5h-5"></path></svg>
+        <span style="font-size: 13px; font-weight: 700">Awaiting re-review</span>
+        <span style="margin-left: auto; font-family: 'Space Mono', monospace; font-size: 12px; font-weight: 700; color: var(--rere)">2</span>
+      </div>
+
+      <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); padding: 14px; display: flex; flex-direction: column; gap: 11px">
+        <div style="display: flex; align-items: baseline; gap: 8px">
+          <span style="font-family: 'Space Mono', monospace; font-size: 11px; color: var(--ink-3)">#482</span>
+          <span style="font-size: 13px; font-weight: 600; line-height: 1.3; text-wrap: pretty">Add rate limiting to webhook ingest</span>
+        </div>
+        <div style="font-family: 'Space Mono', monospace; font-size: 10px; color: var(--ink-3)">backend-api</div>
+        <div style="padding: 9px 11px; border-radius: 8px; background: var(--rere-bg); display: flex; flex-direction: column; gap: 3px">
+          <span style="font-size: 11px; font-weight: 600; color: var(--rere)">Mike approved, then John pushed</span>
+          <span style="font-size: 10px; color: var(--ink-2)">3 commits since that approval</span>
+        </div>
+        <div style="height: 1px; background: var(--line)"></div>
+        <div style="display: flex; align-items: center; justify-content: space-between">
+          <div style="display: flex; align-items: center; gap: 6px">
+            <span style="width: 22px; height: 22px; border-radius: 50%; background: var(--ok); color: var(--panel); display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700">SR</span>
+            <span style="width: 22px; height: 22px; border-radius: 50%; background: var(--rere); color: var(--panel); display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700">MT</span>
+            <span style="width: 22px; height: 22px; border-radius: 50%; background: var(--wait); color: var(--panel); display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700">ES</span>
+          </div>
+          <span style="font-family: 'Space Mono', monospace; font-size: 11px; color: var(--ink-2)">2d</span>
+            <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); padding: 14px; display: flex; flex-direction: column; gap: 11px">
+        <div style="display: flex; align-items: baseline; gap: 8px">
+          <span style="font-family: 'Space Mono', monospace; font-size: 11px; color: var(--ink-3)">#486</span>
+          <span style="font-size: 13px; font-weight: 600; line-height: 1.3; text-wrap: pretty">Make comment debounce window configurable</span>
+        </div>
+        <div style="font-family: 'Space Mono', monospace; font-size: 10px; color: var(--ink-3)">mobile-app</div>
+        <div style="padding: 9px 11px; border-radius: 8px; background: var(--rere-bg); display: flex; flex-direction: column; gap: 3px">
+          <span style="font-size: 11px; font-weight: 600; color: var(--rere)">Emma approved, then John pushed</span>
+          <span style="font-size: 10px; color: var(--ink-2)">Sarah has not looked yet</span>
+        </div>
+        <div style="height: 1px; background: var(--line)"></div>
+        <div style="display: flex; align-items: center; justify-content: space-between">
+          <div style="display: flex; align-items: center; gap: 6px">
+            <span style="width: 22px; height: 22px; border-radius: 50%; background: var(--wait); color: var(--panel); display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700">SR</span>
+            <span style="width: 22px; height: 22px; border-radius: 50%; background: var(--rere); color: var(--panel); display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700">ES</span>
+          </div>
+          <span style="font-family: 'Space Mono', monospace; font-size: 11px; color: var(--ink-2)">4h</span>
+        </div>
+      </div>
+
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 12px; min-width: 0">
+      <div style="display: flex; align-items: center; gap: 9px; padding-bottom: 11px; border-bottom: 2px solid var(--stop)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--stop)" stroke-width="2.6" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+        <span style="font-size: 13px; font-weight: 700">Changes requested</span>
+        <span style="margin-left: auto; font-family: 'Space Mono', monospace; font-size: 12px; font-weight: 700; color: var(--stop)">1</span>
+      </div>
+
+      <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); padding: 14px; display: flex; flex-direction: column; gap: 11px">
+        <div style="display: flex; align-items: baseline; gap: 8px">
+          <span style="font-family: 'Space Mono', monospace; font-size: 11px; color: var(--ink-3)">#479</span>
+          <span style="font-size: 13px; font-weight: 600; line-height: 1.3; text-wrap: pretty">Fix reviewer sync dropping removed reviewers</span>
+        </div>
+        <div style="font-family: 'Space Mono', monospace; font-size: 10px; color: var(--ink-3)">backend-api</div>
+        <div style="padding: 9px 11px; border-radius: 8px; background: var(--stop-bg); display: flex; flex-direction: column; gap: 3px">
+          <span style="font-size: 11px; font-weight: 600; color: var(--stop)">Ball is with Sarah, the author</span>
+          <span style="font-size: 10px; color: var(--ink-2)">Mike asked for changes 1d 4h ago</span>
+        </div>
+        <div style="height: 1px; background: var(--line)"></div>
+        <div style="display: flex; align-items: center; justify-content: space-between">
+          <div style="display: flex; align-items: center; gap: 6px">
+            <span style="width: 22px; height: 22px; border-radius: 50%; background: var(--stop); color: var(--panel); display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700">MT</span>
+            <span style="width: 22px; height: 22px; border-radius: 50%; background: var(--ok); color: var(--panel); display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700">ES</span>
+          </div>
+          <span style="font-family: 'Space Mono', monospace; font-size: 11px; color: var(--ink-2)">1d 4h</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 12px; min-width: 0">
+      <div style="display: flex; align-items: center; gap: 9px; padding-bottom: 11px; border-bottom: 2px solid var(--ok)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>
+        <span style="font-size: 13px; font-weight: 700">Ready to merge</span>
+        <span style="margin-left: auto; font-family: 'Space Mono', monospace; font-size: 12px; font-weight: 700; color: var(--ok)">1</span>
+      </div>
+
+      <div style="background: var(--panel); border: 1px solid var(--ok); border-radius: 12px; box-shadow: var(--shadow); padding: 14px; display: flex; flex-direction: column; gap: 11px">
+        <div style="display: flex; align-items: baseline; gap: 8px">
+          <span style="font-family: 'Space Mono', monospace; font-size: 11px; color: var(--ink-3)">#491</span>
+          <span style="font-size: 13px; font-weight: 600; line-height: 1.3; text-wrap: pretty">Slack Home tab scaffolding</span>
+        </div>
+        <div style="font-family: 'Space Mono', monospace; font-size: 10px; color: var(--ink-3)">web-client</div>
+        <div style="height: 1px; background: var(--line)"></div>
+        <div style="display: flex; align-items: center; justify-content: space-between">
+          <div style="display: flex; align-items: center; gap: 6px">
+            <span style="width: 22px; height: 22px; border-radius: 50%; background: var(--ok); color: var(--panel); display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700">JD</span>
+            <span style="width: 22px; height: 22px; border-radius: 50%; background: var(--ok); color: var(--panel); display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700">SR</span>
+          </div>
+          <span style="font-family: 'Space Mono', monospace; font-size: 11px; color: var(--ok); font-weight: 700">all clear</span>
+        </div>
+      </div>
+
+      <div style="border: 1px dashed var(--line); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 5px">
+        <span style="font-size: 12px; font-weight: 600; color: var(--ink-2)">Merged this week</span>
+        <span style="font-family: 'Space Mono', monospace; font-size: 26px; font-weight: 700; color: var(--ink-3)">7</span>
+      </div>
+    </div>
+
+  </div>
+
+  <div style="display: flex; align-items: center; gap: 14px; padding: 18px 32px 22px; margin-top: auto">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 16v-4M12 8h.01"></path></svg>
+    <span style="font-size: 12px; color: var(--ink-2); text-wrap: pretty">A PR sits in one lane only — the most urgent state across its reviewers. #482 and #486 each have someone waiting on a first review too, but re-review outranks it.</span>
+  </div>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1280,"height":860}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { theme: this.props.theme ?? 'light' };
+  }
+}
+</script>
+</body>
+</html>

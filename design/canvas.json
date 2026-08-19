@@ -1,0 +1,13 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 1100, "h": 470, "title": "Start here" },
+    { "file": "StatusVocabulary.dc.html", "x": 1200, "y": 0, "w": 1100, "h": 800, "title": "Status vocabulary" },
+    { "file": "DirectionA-OpsWall.dc.html", "x": 0, "y": 900, "w": 1280, "h": 860, "title": "A — Ops wall" },
+    { "file": "DirectionB-PeopleMatrix.dc.html", "x": 1380, "y": 900, "w": 1280, "h": 860, "title": "B — People matrix" },
+    { "file": "DirectionC-ActionLanes.dc.html", "x": 2760, "y": 900, "w": 1280, "h": 860, "title": "C — Action lanes" }
+  ],
+  "annotations": [
+    { "id": "pick-one", "x": 0, "y": 560, "w": 400, "text": "Pick a direction — or a mix — and I will build the full screen set in it:\n\n· team board\n· one-person view\n· single PR detail\n· empty and error states\n\nThen implement it on the Express server." }
+  ],
+  "launch": { "view": "canvas" }
+}
