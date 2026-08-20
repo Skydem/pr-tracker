@@ -47,16 +47,38 @@ export function deriveReviewerState(
   userId: string,
   events: ReviewEvent[]
 ): ReviewerState {
-  if (status === "CHANGES_REQUESTED") return "CHANGES_REQUESTED";
-  if (status === "APPROVED") return "APPROVED";
+  const lastVerdict = lastVerdictBy(userId, events);
 
-  const reviewedEarlier = events.some(
-    (event) =>
-      event.actorId === userId &&
-      (event.eventType === "PR_APPROVED" || event.eventType === "PR_CHANGES_REQUESTED")
-  );
+  if (lastVerdict === null) {
+    if (status === "CHANGES_REQUESTED") return "CHANGES_REQUESTED";
+    if (status === "APPROVED") return "APPROVED";
+    return "AWAITING_FIRST_REVIEW";
+  }
 
-  return reviewedEarlier ? "AWAITING_RE_REVIEW" : "AWAITING_FIRST_REVIEW";
+  if (status === "PENDING") return "AWAITING_RE_REVIEW";
+  if (lastVerdict.eventType === "PR_APPROVED") return "APPROVED";
+
+  const lastPushAt = lastPushTime(events);
+  return lastPushAt !== null && lastPushAt > lastVerdict.createdAt
+    ? "AWAITING_RE_REVIEW"
+    : "CHANGES_REQUESTED";
+}
+
+function lastVerdictBy(userId: string, events: ReviewEvent[]): ReviewEvent | null {
+  return events.reduce<ReviewEvent | null>((latest, event) => {
+    if (event.actorId !== userId) return latest;
+    if (event.eventType !== "PR_APPROVED" && event.eventType !== "PR_CHANGES_REQUESTED") {
+      return latest;
+    }
+    return latest === null || event.createdAt > latest.createdAt ? event : latest;
+  }, null);
+}
+
+function lastPushTime(events: ReviewEvent[]): Date | null {
+  return events.reduce<Date | null>((latest, event) => {
+    if (event.eventType !== "PR_COMMITS_PUSHED") return latest;
+    return latest === null || event.createdAt > latest ? event.createdAt : latest;
+  }, null);
 }
 
 export function derivePRState(reviewerStates: ReviewerState[]): PRHeadlineState {

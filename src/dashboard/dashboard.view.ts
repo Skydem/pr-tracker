@@ -82,11 +82,11 @@ function prRow(pr: BoardPullRequest): string {
   return `<div class="row row-${token}">
   <div class="row-main">
     <div class="row-title"><span class="mono muted">#${pr.bitbucketId}</span><span class="title">${titleCell}</span>${pr.stale ? '<span class="badge badge-wait">Stale</span>' : ""}</div>
-    <div class="mono muted small">${escapeHtml(pr.repositorySlug)} &nbsp;·&nbsp; ${escapeHtml(pr.sourceBranch)} → ${escapeHtml(pr.destBranch)}</div>
+    <div class="mono small meta">${escapeHtml(pr.repositorySlug)} &nbsp;·&nbsp; ${escapeHtml(pr.sourceBranch)} → ${escapeHtml(pr.destBranch)}</div>
   </div>
   <div class="row-author"><span class="avatar avatar-plain">${escapeHtml(initials(pr.authorName))}</span><span class="small">${escapeHtml(pr.authorName)}</span></div>
   <div class="row-reviewers">${pr.reviewers.map(reviewerChip).join("") || '<span class="small muted">none</span>'}</div>
-  <div class="wait-cell"><span class="mono age age-${token}">${pr.state === "READY_TO_MERGE" ? "ready" : escapeHtml(formatAge(pr.ageMs))}</span><span class="caps muted">${escapeHtml(waiting)}</span></div>
+  <div class="wait-cell"><span class="mono age age-${token}">${pr.state === "READY_TO_MERGE" ? "ready" : escapeHtml(formatAge(pr.ageMs))}</span><span class="wait-note">${escapeHtml(waiting)}</span></div>
 </div>`;
 }
 

@@ -77,6 +77,36 @@ class BitbucketApiService {
 
     return (await response.json()) as BitbucketPullRequest;
   }
+
+  async getLatestCommit(
+    repoSlug: string,
+    prId: number
+  ): Promise<{ hash: string; date: Date } | null> {
+    const url = `${this.baseUrl}/repositories/${config.bitbucket.workspace}/${repoSlug}/pullrequests/${prId}/commits?pagelen=1`;
+
+    const response = await fetch(url, {
+      headers: {
+        Authorization: this.getAuthHeader(),
+        Accept: "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `Bitbucket API error: ${response.status} ${response.statusText}`
+      );
+    }
+
+    const data = (await response.json()) as BitbucketPaginatedResponse<{
+      hash: string;
+      date: string;
+    }>;
+
+    const latest = data.values[0];
+    if (!latest) return null;
+
+    return { hash: latest.hash, date: new Date(latest.date) };
+  }
 }
 
 export const bitbucketApiService = new BitbucketApiService();

@@ -31,6 +31,7 @@ model PullRequest {
   title          String
   sourceBranch   String
   destBranch     String
+  sourceCommitHash String?
   state          PRState  @default(OPEN)
   url            String?
   authorId       String
@@ -82,6 +83,7 @@ enum ReviewStatus {
 enum EventType {
   PR_CREATED
   PR_UPDATED
+  PR_COMMITS_PUSHED
   PR_APPROVED
   PR_CHANGES_REQUESTED
   PR_COMMENT_ADDED

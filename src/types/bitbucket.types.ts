@@ -36,6 +36,7 @@ export interface BitbucketPullRequest {
   source: {
     branch: BitbucketBranch;
     repository: BitbucketRepository;
+    commit?: { hash: string };
   };
   destination: {
     branch: BitbucketBranch;

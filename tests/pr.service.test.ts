@@ -153,6 +153,99 @@ describe("PRService", () => {
       expect(prisma.pullRequest.update).toHaveBeenCalled();
       expect(result).toBeDefined();
     });
+
+    describe("push detection", () => {
+      const existingPR = {
+        id: "pr-1",
+        bitbucketId: 123,
+        repositorySlug: "test-repo",
+        workspaceSlug: "workspace",
+        title: "Test PR",
+        sourceBranch: "feature-branch",
+        destBranch: "main",
+        sourceCommitHash: "aaaa1111",
+        state: "OPEN" as const,
+        url: null,
+        authorId: "user-1",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const prAt = (hash: string | undefined): BitbucketPullRequest => ({
+        ...mockPR,
+        source: { ...mockPR.source, commit: hash ? { hash } : undefined },
+      });
+
+      beforeEach(() => {
+        vi.mocked(userService.findOrCreateUser).mockResolvedValue(mockUser);
+        vi.mocked(userService.getUserByBitbucketUuid).mockResolvedValue(mockUser);
+        vi.mocked(prisma.pullRequest.findUnique).mockResolvedValue(existingPR);
+        vi.mocked(prisma.pRReviewer.findMany).mockResolvedValue([]);
+        vi.mocked(prisma.pullRequest.findUniqueOrThrow).mockResolvedValue({
+          ...existingPR,
+          reviewers: [],
+          author: { displayName: "Test Author", slackUserId: "slack-1" },
+        } as never);
+      });
+
+      it("logs a push event when the source commit changes", async () => {
+        vi.mocked(prisma.pullRequest.update).mockResolvedValue({
+          ...existingPR,
+          sourceCommitHash: "bbbb2222",
+        });
+
+        await prService.createOrUpdatePR(prAt("bbbb2222"), "workspace");
+
+        expect(prisma.pREvent.create).toHaveBeenCalledWith({
+          data: expect.objectContaining({
+            pullRequestId: "pr-1",
+            eventType: "PR_COMMITS_PUSHED",
+          }),
+        });
+      });
+
+      it("logs nothing when the source commit is unchanged", async () => {
+        vi.mocked(prisma.pullRequest.update).mockResolvedValue(existingPR);
+
+        await prService.createOrUpdatePR(prAt("aaaa1111"), "workspace");
+
+        expect(prisma.pREvent.create).not.toHaveBeenCalled();
+      });
+
+      it("logs nothing when the payload carries no commit", async () => {
+        vi.mocked(prisma.pullRequest.update).mockResolvedValue(existingPR);
+
+        await prService.createOrUpdatePR(prAt(undefined), "workspace");
+
+        expect(prisma.pREvent.create).not.toHaveBeenCalled();
+      });
+
+      it("does not invent a push for a PR that never had a stored commit", async () => {
+        vi.mocked(prisma.pullRequest.findUnique).mockResolvedValue({
+          ...existingPR,
+          sourceCommitHash: null,
+        });
+        vi.mocked(prisma.pullRequest.update).mockResolvedValue({
+          ...existingPR,
+          sourceCommitHash: "bbbb2222",
+        });
+
+        await prService.createOrUpdatePR(prAt("bbbb2222"), "workspace");
+
+        expect(prisma.pREvent.create).not.toHaveBeenCalled();
+      });
+
+      it("keeps the stored commit when the payload omits one", async () => {
+        vi.mocked(prisma.pullRequest.update).mockResolvedValue(existingPR);
+
+        await prService.createOrUpdatePR(prAt(undefined), "workspace");
+
+        expect(prisma.pullRequest.update).toHaveBeenCalledWith({
+          where: { id: "pr-1" },
+          data: expect.objectContaining({ sourceCommitHash: "aaaa1111" }),
+        });
+      });
+    });
   });
 
   describe("updateReviewerStatus", () => {

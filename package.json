@@ -13,7 +13,8 @@
     "test:coverage": "vitest run --coverage",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
-    "db:push": "prisma db push"
+    "db:push": "prisma db push",
+    "backfill:push-events": "tsx scripts/backfill-push-events.ts"
   },
   "keywords": [
     "bitbucket",

@@ -40,6 +40,7 @@ export class PRService {
     });
 
     const prState = this.mapPRState(prData.state);
+    const sourceCommitHash = prData.source.commit?.hash ?? null;
 
     let pr: PullRequest;
 
@@ -50,10 +51,22 @@ export class PRService {
           title: prData.title,
           sourceBranch: prData.source.branch.name,
           destBranch: prData.destination.branch.name,
+          sourceCommitHash: sourceCommitHash ?? existingPR.sourceCommitHash,
           state: prState,
           url: prData.links?.html?.href,
         },
       });
+
+      if (
+        sourceCommitHash !== null &&
+        existingPR.sourceCommitHash !== null &&
+        existingPR.sourceCommitHash !== sourceCommitHash
+      ) {
+        await this.logEvent(pr.id, "PR_COMMITS_PUSHED", prData.author.uuid, {
+          from: existingPR.sourceCommitHash,
+          to: sourceCommitHash,
+        });
+      }
     } else {
       pr = await prisma.pullRequest.create({
         data: {
@@ -63,6 +76,7 @@ export class PRService {
           title: prData.title,
           sourceBranch: prData.source.branch.name,
           destBranch: prData.destination.branch.name,
+          sourceCommitHash,
           state: prState,
           url: prData.links?.html?.href,
           authorId: author.id,

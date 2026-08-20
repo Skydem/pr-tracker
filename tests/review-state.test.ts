@@ -16,44 +16,137 @@ function approval(actorId: string, iso: string): ReviewEvent {
   return { eventType: "PR_APPROVED", actorId, createdAt: at(iso) };
 }
 
+function changesRequested(actorId: string, iso: string): ReviewEvent {
+  return { eventType: "PR_CHANGES_REQUESTED", actorId, createdAt: at(iso) };
+}
+
+function push(actorId: string, iso: string): ReviewEvent {
+  return { eventType: "PR_COMMITS_PUSHED", actorId, createdAt: at(iso) };
+}
+
 function update(actorId: string, iso: string): ReviewEvent {
   return { eventType: "PR_UPDATED", actorId, createdAt: at(iso) };
 }
 
 describe("deriveReviewerState", () => {
-  it("reports changes requested directly from status", () => {
-    expect(deriveReviewerState("CHANGES_REQUESTED", "user-1", [])).toBe("CHANGES_REQUESTED");
-  });
-
-  it("reports approved directly from status", () => {
-    expect(deriveReviewerState("APPROVED", "user-1", [])).toBe("APPROVED");
-  });
-
   it("treats a pending reviewer with no history as awaiting a first review", () => {
     expect(deriveReviewerState("PENDING", "user-1", [])).toBe("AWAITING_FIRST_REVIEW");
   });
 
-  it("treats a pending reviewer who approved earlier as awaiting a re-review", () => {
-    const events = [approval("user-1", "2026-08-01T10:00:00Z"), update("user-2", "2026-08-02T10:00:00Z")];
-    expect(deriveReviewerState("PENDING", "user-1", events)).toBe("AWAITING_RE_REVIEW");
+  it("keeps a verdict that nothing has invalidated", () => {
+    const events = [approval("user-1", "2026-08-01T10:00:00Z")];
+    expect(deriveReviewerState("APPROVED", "user-1", events)).toBe("APPROVED");
+    expect(
+      deriveReviewerState("CHANGES_REQUESTED", "user-1", [
+        changesRequested("user-1", "2026-08-01T10:00:00Z"),
+      ])
+    ).toBe("CHANGES_REQUESTED");
   });
 
-  it("treats a pending reviewer who requested changes earlier as awaiting a re-review", () => {
-    const events: ReviewEvent[] = [
-      { eventType: "PR_CHANGES_REQUESTED", actorId: "user-1", createdAt: at("2026-08-01T10:00:00Z") },
-      update("user-2", "2026-08-02T10:00:00Z"),
+  it("stales out changes requested once the author pushes", () => {
+    const events = [
+      changesRequested("user-1", "2026-08-01T10:00:00Z"),
+      push("author", "2026-08-02T10:00:00Z"),
     ];
-    expect(deriveReviewerState("PENDING", "user-1", events)).toBe("AWAITING_RE_REVIEW");
+    expect(deriveReviewerState("CHANGES_REQUESTED", "user-1", events)).toBe(
+      "AWAITING_RE_REVIEW"
+    );
   });
 
-  it("still reports a re-review when the push event was never logged", () => {
+  it("keeps an approval even after the author pushes", () => {
+    const events = [
+      approval("user-1", "2026-08-01T10:00:00Z"),
+      push("author", "2026-08-02T10:00:00Z"),
+    ];
+    expect(deriveReviewerState("APPROVED", "user-1", events)).toBe("APPROVED");
+  });
+
+  it("keeps an approval across repeated pushes", () => {
+    const events = [
+      approval("user-1", "2026-08-01T10:00:00Z"),
+      push("author", "2026-08-02T10:00:00Z"),
+      push("author", "2026-08-03T10:00:00Z"),
+      push("author", "2026-08-04T10:00:00Z"),
+    ];
+    expect(deriveReviewerState("APPROVED", "user-1", events)).toBe("APPROVED");
+  });
+
+  it("keeps an approval that superseded the reviewer's own changes requested", () => {
+    const events = [
+      changesRequested("user-1", "2026-08-01T10:00:00Z"),
+      approval("user-1", "2026-08-02T10:00:00Z"),
+      push("author", "2026-08-03T10:00:00Z"),
+    ];
+    expect(deriveReviewerState("APPROVED", "user-1", events)).toBe("APPROVED");
+  });
+
+  it("keeps a verdict given after the last push", () => {
+    const events = [
+      push("author", "2026-08-01T10:00:00Z"),
+      approval("user-1", "2026-08-02T10:00:00Z"),
+    ];
+    expect(deriveReviewerState("APPROVED", "user-1", events)).toBe("APPROVED");
+  });
+
+  it("uses the reviewer's latest verdict, not their first", () => {
+    const events = [
+      changesRequested("user-1", "2026-08-01T10:00:00Z"),
+      push("author", "2026-08-02T10:00:00Z"),
+      approval("user-1", "2026-08-03T10:00:00Z"),
+    ];
+    expect(deriveReviewerState("APPROVED", "user-1", events)).toBe("APPROVED");
+  });
+
+  it("does not treat a description edit as a push", () => {
+    const events = [
+      changesRequested("user-1", "2026-08-01T10:00:00Z"),
+      update("author", "2026-08-02T10:00:00Z"),
+    ];
+    expect(deriveReviewerState("CHANGES_REQUESTED", "user-1", events)).toBe(
+      "CHANGES_REQUESTED"
+    );
+  });
+
+  it("ignores pushes that predate the reviewer's verdict", () => {
+    const events = [
+      push("author", "2026-08-01T10:00:00Z"),
+      push("author", "2026-08-02T10:00:00Z"),
+      changesRequested("user-1", "2026-08-03T10:00:00Z"),
+    ];
+    expect(deriveReviewerState("CHANGES_REQUESTED", "user-1", events)).toBe(
+      "CHANGES_REQUESTED"
+    );
+  });
+
+  it("stales out changes requested when any later push exists", () => {
+    const events = [
+      changesRequested("user-1", "2026-08-02T10:00:00Z"),
+      push("author", "2026-08-01T10:00:00Z"),
+      push("author", "2026-08-03T10:00:00Z"),
+    ];
+    expect(deriveReviewerState("CHANGES_REQUESTED", "user-1", events)).toBe(
+      "AWAITING_RE_REVIEW"
+    );
+  });
+
+  it("treats a withdrawn approval as awaiting a re-review", () => {
     const events = [approval("user-1", "2026-08-01T10:00:00Z")];
     expect(deriveReviewerState("PENDING", "user-1", events)).toBe("AWAITING_RE_REVIEW");
   });
 
-  it("ignores approvals made by other reviewers", () => {
-    const events = [approval("user-2", "2026-08-01T10:00:00Z")];
+  it("ignores verdicts made by other reviewers", () => {
+    const events = [
+      approval("user-2", "2026-08-01T10:00:00Z"),
+      push("author", "2026-08-02T10:00:00Z"),
+    ];
     expect(deriveReviewerState("PENDING", "user-1", events)).toBe("AWAITING_FIRST_REVIEW");
+  });
+
+  it("falls back to the bitbucket status when no verdict was ever logged", () => {
+    expect(deriveReviewerState("CHANGES_REQUESTED", "user-1", [])).toBe(
+      "CHANGES_REQUESTED"
+    );
+    expect(deriveReviewerState("APPROVED", "user-1", [])).toBe("APPROVED");
   });
 });
 
