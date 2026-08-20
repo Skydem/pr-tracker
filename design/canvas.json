@@ -1,0 +1,21 @@
+{
+  "pages": [
+    { "id": "dashboard", "name": "Dashboard" },
+    { "id": "directions", "name": "Directions (decided)" }
+  ],
+  "artboards": [
+    { "file": "Main.dc.html", "page": "dashboard", "x": 0, "y": 0, "w": 1100, "h": 470, "title": "Start here" },
+    { "file": "StatusVocabulary.dc.html", "page": "dashboard", "x": 1200, "y": 0, "w": 1100, "h": 800, "title": "Status vocabulary" },
+    { "file": "TeamBoard.dc.html", "page": "dashboard", "x": 0, "y": 900, "w": 1280, "h": 860, "title": "01 — Team board" },
+    { "file": "PersonView.dc.html", "page": "dashboard", "x": 1380, "y": 900, "w": 1280, "h": 860, "title": "02 — One person" },
+    { "file": "PRDetail.dc.html", "page": "dashboard", "x": 2760, "y": 900, "w": 1280, "h": 860, "title": "03 — One PR" },
+    { "file": "EmptyAndErrorStates.dc.html", "page": "dashboard", "x": 4140, "y": 900, "w": 1280, "h": 860, "title": "04 — Empty + error" },
+    { "file": "DirectionA-OpsWall.dc.html", "page": "directions", "x": 0, "y": 0, "w": 1280, "h": 860, "title": "A — Ops wall (chosen)" },
+    { "file": "DirectionB-PeopleMatrix.dc.html", "page": "directions", "x": 1380, "y": 0, "w": 1280, "h": 860, "title": "B — People matrix" },
+    { "file": "DirectionC-ActionLanes.dc.html", "page": "directions", "x": 2760, "y": 0, "w": 1280, "h": 860, "title": "C — Action lanes" }
+  ],
+  "annotations": [
+    { "id": "next", "page": "dashboard", "x": 0, "y": 560, "w": 400, "text": "SHIPPED — commit 7819b1f\n\n· 01 Team board → GET /dashboard\n· 02 One person → ?person=<id>\n\nDesigned, not built yet:\n\n· 03 One PR\n· 04 Empty + error (partly built)\n\nDecided: no login, read-only, person picker instead. 03 keeps its nudge actions on paper only — those need auth before they can ship.\n\nStill open: filtering, and refresh (reload vs SSE)." }
+  ],
+  "launch": { "view": "canvas", "page": "dashboard" }
+}
