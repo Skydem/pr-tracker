@@ -11,6 +11,7 @@ import type {
   BoardReviewer,
   PersonBoard,
   PersonLoad,
+  PersonRef,
 } from "../services/dashboard.service.js";
 import { DASHBOARD_STYLES } from "./dashboard.styles.js";
 
@@ -116,7 +117,7 @@ function personCard(person: PersonLoad): string {
 </a>`;
 }
 
-function personPicker(people: PersonLoad[], selectedId: string | null): string {
+function personPicker(people: PersonRef[], selectedId: string | null): string {
   const chips = people.map(
     (person) =>
       `<a class="pick${person.userId === selectedId ? " pick-on" : ""}" href="/dashboard?person=${encodeURIComponent(person.userId)}"><span class="avatar avatar-plain">${escapeHtml(initials(person.displayName))}</span>${escapeHtml(firstName(person.displayName))}</a>`
@@ -155,7 +156,7 @@ export function renderBoard(board: Board): string {
   return layout({
     heading: "Review floor",
     subheading: `${board.pullRequests.length} open pull request${board.pullRequests.length === 1 ? "" : "s"}`,
-    picker: personPicker(board.people, null),
+    picker: personPicker(board.everyone, null),
     pills: [
       countPill("stop", board.counts.BLOCKED, "blocked"),
       countPill("rere", board.counts.AWAITING_RE_REVIEW, "re-review"),
@@ -193,7 +194,7 @@ export function renderPersonBoard(person: PersonBoard, board: Board): string {
   return layout({
     heading: person.displayName,
     subheading: `${person.toReview.length} review${person.toReview.length === 1 ? "" : "s"} waiting on you`,
-    picker: personPicker(board.people, person.userId),
+    picker: personPicker(board.everyone, person.userId),
     pills: "",
     body: `<div class="stack">
   ${section("Waiting on you", "your review is what these need next", person.toReview, "Nothing is waiting on your review.")}

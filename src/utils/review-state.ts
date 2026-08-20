@@ -50,11 +50,13 @@ export function deriveReviewerState(
   if (status === "CHANGES_REQUESTED") return "CHANGES_REQUESTED";
   if (status === "APPROVED") return "APPROVED";
 
-  const approvedEarlier = events.some(
-    (event) => event.eventType === "PR_APPROVED" && event.actorId === userId
+  const reviewedEarlier = events.some(
+    (event) =>
+      event.actorId === userId &&
+      (event.eventType === "PR_APPROVED" || event.eventType === "PR_CHANGES_REQUESTED")
   );
 
-  return approvedEarlier ? "AWAITING_RE_REVIEW" : "AWAITING_FIRST_REVIEW";
+  return reviewedEarlier ? "AWAITING_RE_REVIEW" : "AWAITING_FIRST_REVIEW";
 }
 
 export function derivePRState(reviewerStates: ReviewerState[]): PRHeadlineState {

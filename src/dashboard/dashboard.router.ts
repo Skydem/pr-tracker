@@ -10,16 +10,18 @@ export function createDashboardRouter(): Router {
     try {
       const personId = typeof req.query.person === "string" ? req.query.person : null;
 
+      const board = await dashboardService.getBoard();
+
       if (personId === null) {
-        const board = await dashboardService.getBoard();
         res.type("html").send(renderBoard(board));
         return;
       }
 
-      const [person, board] = await Promise.all([
-        dashboardService.getPersonBoard(personId),
-        dashboardService.getBoard(),
-      ]);
+      const person = await dashboardService.getPersonBoard(
+        personId,
+        board.generatedAt,
+        board
+      );
 
       if (person === null) {
         res.status(404).type("html").send(renderNotFound("That person is not in the tracker."));

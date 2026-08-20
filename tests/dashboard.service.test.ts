@@ -199,6 +199,34 @@ describe("DashboardService", () => {
       expect(board.people[0]!.userId).toBe(people.emma.id);
     });
 
+    it("lists authors in the picker even when they review nothing", async () => {
+      vi.mocked(prisma.pullRequest.findMany).mockResolvedValue([
+        prRecord({ id: "a", author: people.john, reviewers: [reviewer(people.emma, "PENDING")] }),
+      ] as never);
+
+      const board = await service.getBoard(NOW);
+
+      expect(board.everyone.map((person) => person.userId).sort()).toEqual([
+        people.emma.id,
+        people.john.id,
+      ]);
+      expect(board.people.map((person) => person.userId)).toEqual([people.emma.id]);
+    });
+
+    it("lists each person once and sorts the picker by name", async () => {
+      vi.mocked(prisma.pullRequest.findMany).mockResolvedValue([
+        prRecord({ id: "a", author: people.sarah, reviewers: [reviewer(people.mike, "PENDING")] }),
+        prRecord({ id: "b", author: people.mike, reviewers: [reviewer(people.sarah, "APPROVED")] }),
+      ] as never);
+
+      const board = await service.getBoard(NOW);
+
+      expect(board.everyone.map((person) => person.displayName)).toEqual([
+        "Mike Tech Lead",
+        "Sarah Reviewer",
+      ]);
+    });
+
     it("returns an empty board when nothing is open", async () => {
       vi.mocked(prisma.pullRequest.findMany).mockResolvedValue([] as never);
 
@@ -206,6 +234,7 @@ describe("DashboardService", () => {
 
       expect(board.pullRequests).toEqual([]);
       expect(board.people).toEqual([]);
+      expect(board.everyone).toEqual([]);
       expect(board.counts.BLOCKED).toBe(0);
     });
   });

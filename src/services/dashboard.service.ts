@@ -35,6 +35,11 @@ export interface BoardPullRequest {
   waitingOn: string[];
 }
 
+export interface PersonRef {
+  userId: string;
+  displayName: string;
+}
+
 export interface PersonLoad {
   userId: string;
   displayName: string;
@@ -48,6 +53,7 @@ export interface PersonLoad {
 export interface Board {
   pullRequests: BoardPullRequest[];
   people: PersonLoad[];
+  everyone: PersonRef[];
   counts: Record<PRHeadlineState, number>;
   staleDays: number;
   generatedAt: Date;
@@ -91,13 +97,18 @@ export class DashboardService {
     return {
       pullRequests,
       people: this.buildPeopleLoad(pullRequests),
+      everyone: this.buildEveryone(pullRequests),
       counts: this.countByState(pullRequests),
       staleDays,
       generatedAt: now,
     };
   }
 
-  async getPersonBoard(userId: string, now: Date = new Date()): Promise<PersonBoard | null> {
+  async getPersonBoard(
+    userId: string,
+    now: Date = new Date(),
+    prebuiltBoard?: Board
+  ): Promise<PersonBoard | null> {
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { id: true, displayName: true },
@@ -105,7 +116,7 @@ export class DashboardService {
 
     if (!user) return null;
 
-    const board = await this.getBoard(now);
+    const board = prebuiltBoard ?? (await this.getBoard(now));
 
     const reviewerEntry = (pr: BoardPullRequest) =>
       pr.reviewers.find((reviewer) => reviewer.userId === userId);
@@ -193,6 +204,24 @@ export class DashboardService {
     return reviewers
       .filter((reviewer) => isAwaitingAction(reviewer.state))
       .map((reviewer) => reviewer.displayName);
+  }
+
+  private buildEveryone(pullRequests: BoardPullRequest[]): PersonRef[] {
+    const byUser = new Map<string, PersonRef>();
+
+    for (const pr of pullRequests) {
+      byUser.set(pr.authorId, { userId: pr.authorId, displayName: pr.authorName });
+      for (const reviewer of pr.reviewers) {
+        byUser.set(reviewer.userId, {
+          userId: reviewer.userId,
+          displayName: reviewer.displayName,
+        });
+      }
+    }
+
+    return [...byUser.values()].sort((a, b) =>
+      a.displayName.localeCompare(b.displayName)
+    );
   }
 
   private buildPeopleLoad(pullRequests: BoardPullRequest[]): PersonLoad[] {

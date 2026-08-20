@@ -38,6 +38,14 @@ describe("deriveReviewerState", () => {
     expect(deriveReviewerState("PENDING", "user-1", events)).toBe("AWAITING_RE_REVIEW");
   });
 
+  it("treats a pending reviewer who requested changes earlier as awaiting a re-review", () => {
+    const events: ReviewEvent[] = [
+      { eventType: "PR_CHANGES_REQUESTED", actorId: "user-1", createdAt: at("2026-08-01T10:00:00Z") },
+      update("user-2", "2026-08-02T10:00:00Z"),
+    ];
+    expect(deriveReviewerState("PENDING", "user-1", events)).toBe("AWAITING_RE_REVIEW");
+  });
+
   it("still reports a re-review when the push event was never logged", () => {
     const events = [approval("user-1", "2026-08-01T10:00:00Z")];
     expect(deriveReviewerState("PENDING", "user-1", events)).toBe("AWAITING_RE_REVIEW");

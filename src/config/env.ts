@@ -12,8 +12,13 @@ function optionalEnv(key: string, defaultValue: string): string {
   return process.env[key] ?? defaultValue;
 }
 
+function optionalIntEnv(key: string, defaultValue: number): number {
+  const parsed = parseInt(process.env[key] ?? "", 10);
+  return Number.isFinite(parsed) ? parsed : defaultValue;
+}
+
 export const config = {
-  port: parseInt(optionalEnv("PORT", "3000"), 10),
+  port: optionalIntEnv("PORT", 3000),
 
   database: {
     url: requireEnv("DATABASE_URL"),
@@ -29,7 +34,7 @@ export const config = {
   webhookSecret: optionalEnv("WEBHOOK_SECRET", ""),
 
   dashboard: {
-    staleDays: parseInt(optionalEnv("DASHBOARD_STALE_DAYS", "3"), 10),
+    staleDays: optionalIntEnv("DASHBOARD_STALE_DAYS", 3),
   },
 
   bitbucket: {
