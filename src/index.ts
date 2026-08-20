@@ -3,6 +3,7 @@ const { App } = pkg;
 import express from "express";
 import { config } from "./config/env.js";
 import { createBitbucketWebhookRouter } from "./webhooks/bitbucket.handler.js";
+import { createDashboardRouter } from "./dashboard/dashboard.router.js";
 import { registerAllCommands } from "./commands/index.js";
 import { userService } from "./services/user.service.js";
 import { slackService } from "./services/slack.service.js";
@@ -30,6 +31,7 @@ async function main() {
   const httpServer = express();
   httpServer.use(express.json());
   httpServer.use("/webhooks/bitbucket", createBitbucketWebhookRouter());
+  httpServer.use("/dashboard", createDashboardRouter());
   httpServer.get("/health", (_req, res) => {
     res.json({ status: "ok", timestamp: new Date().toISOString() });
   });
@@ -45,6 +47,7 @@ async function main() {
     console.log(`HTTP server running on port ${config.port}`);
     console.log(`Webhook endpoint: http://localhost:${config.port}/webhooks/bitbucket`);
     console.log(`Health check: http://localhost:${config.port}/health`);
+    console.log(`Dashboard: http://localhost:${config.port}/dashboard`);
   });
 }
 

@@ -28,6 +28,10 @@ export const config = {
 
   webhookSecret: optionalEnv("WEBHOOK_SECRET", ""),
 
+  dashboard: {
+    staleDays: parseInt(optionalEnv("DASHBOARD_STALE_DAYS", "3"), 10),
+  },
+
   bitbucket: {
     workspace: optionalEnv("BITBUCKET_WORKSPACE", ""),
     email: optionalEnv("BITBUCKET_EMAIL", ""),
