@@ -32,6 +32,9 @@ async function main() {
   httpServer.use(express.json());
   httpServer.use("/webhooks/bitbucket", createBitbucketWebhookRouter());
   httpServer.use("/dashboard", createDashboardRouter());
+  httpServer.get("/", (_req, res) => {
+    res.redirect("/dashboard");
+  });
   httpServer.get("/health", (_req, res) => {
     res.json({ status: "ok", timestamp: new Date().toISOString() });
   });

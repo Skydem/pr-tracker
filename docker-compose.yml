@@ -11,6 +11,14 @@ services:
     env_file:
       - .env
     restart: unless-stopped
+    networks:
+      - default
+      - shared_network
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.pr-tracker.entrypoints: "web"
+      traefik.http.routers.pr-tracker.rule: "Host(`pr.torbust.work`)"
+      traefik.http.services.pr-tracker.loadbalancer.server.port: "3000"
 
   postgres:
     image: postgres:16-alpine
@@ -36,3 +44,7 @@ services:
 
 volumes:
   postgres_data:
+
+networks:
+  shared_network:
+    external: true
