@@ -15,7 +15,7 @@
     { "file": "DirectionC-ActionLanes.dc.html", "page": "directions", "x": 2760, "y": 0, "w": 1280, "h": 860, "title": "C — Action lanes" }
   ],
   "annotations": [
-    { "id": "next", "page": "dashboard", "x": 0, "y": 560, "w": 400, "text": "Next: implement this on the Express server.\n\nOpen questions before I start:\n\n· filtering — the board has none yet\n· auth — who can open the page\n· refresh — poll, or push over SSE" }
+    { "id": "next", "page": "dashboard", "x": 0, "y": 560, "w": 400, "text": "SHIPPED — commit 7819b1f\n\n· 01 Team board → GET /dashboard\n· 02 One person → ?person=<id>\n\nDesigned, not built yet:\n\n· 03 One PR\n· 04 Empty + error (partly built)\n\nDecided: no login, read-only, person picker instead. 03 keeps its nudge actions on paper only — those need auth before they can ship.\n\nStill open: filtering, and refresh (reload vs SSE)." }
   ],
   "launch": { "view": "canvas", "page": "dashboard" }
 }
