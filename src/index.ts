@@ -3,6 +3,7 @@ const { App } = pkg;
 import express from "express";
 import { config } from "./config/env.js";
 import { createBitbucketWebhookRouter } from "./webhooks/bitbucket.handler.js";
+import type { RawBodyRequest } from "./types/express.types.js";
 import { registerAllCommands } from "./commands/index.js";
 import { userService } from "./services/user.service.js";
 import { slackService } from "./services/slack.service.js";
@@ -28,7 +29,20 @@ async function main() {
 
   // Separate Express server for HTTP endpoints (webhooks, health)
   const httpServer = express();
-  httpServer.use(express.json());
+  httpServer.use(
+    express.json({
+      verify: (req, _res, buf) => {
+        (req as RawBodyRequest).rawBody = buf;
+      },
+    })
+  );
+
+  if (!config.webhookSecret) {
+    console.warn(
+      "WARNING: WEBHOOK_SECRET is not set. Bitbucket webhook signature verification is DISABLED and /webhooks/bitbucket will accept forged events from anyone who can reach it."
+    );
+  }
+
   httpServer.use("/webhooks/bitbucket", createBitbucketWebhookRouter());
   httpServer.get("/health", (_req, res) => {
     res.json({ status: "ok", timestamp: new Date().toISOString() });

@@ -12,6 +12,16 @@ function optionalEnv(key: string, defaultValue: string): string {
   return process.env[key] ?? defaultValue;
 }
 
+function requiredInProductionEnv(key: string): string {
+  const value = process.env[key] ?? "";
+  if (!value && process.env.NODE_ENV === "production") {
+    throw new Error(
+      `Missing required environment variable in production: ${key}`
+    );
+  }
+  return value;
+}
+
 export const config = {
   port: parseInt(optionalEnv("PORT", "3000"), 10),
 
@@ -26,7 +36,7 @@ export const config = {
     adminUserId: optionalEnv("SLACK_ADMIN_USER_ID", ""),
   },
 
-  webhookSecret: optionalEnv("WEBHOOK_SECRET", ""),
+  webhookSecret: requiredInProductionEnv("WEBHOOK_SECRET"),
 
   bitbucket: {
     workspace: optionalEnv("BITBUCKET_WORKSPACE", ""),

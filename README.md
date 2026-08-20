@@ -112,10 +112,19 @@ SLACK_APP_TOKEN=xapp-...       # Basic Information → App-Level Tokens (if usin
      - Comment created
      - Merged
      - Declined
-4. (Optional) Set a secret and add to `.env`:
+4. Set a secret on the webhook and add the same value to `.env`:
    ```
    WEBHOOK_SECRET=your-secret-here
    ```
+   Bitbucket signs each delivery with this secret in the `X-Hub-Signature`
+   header (`sha256=<hex>`) and the app rejects any request whose signature
+   does not match. It is required when `NODE_ENV=production` (which the
+   Docker image sets), and the webhook secret configured in Bitbucket must
+   match `.env` exactly or deliveries will be rejected with `401`.
+
+   Without it the app starts, logs a loud warning and accepts unsigned
+   webhooks - acceptable for local development only, since the endpoint is
+   publicly reachable through the Cloudflare tunnel in production.
 
 Repeat for each repository you want to track.
 
@@ -184,7 +193,7 @@ Users are automatically linked when their Bitbucket email matches their Slack em
 | `SLACK_SIGNING_SECRET` | Yes | Slack app signing secret |
 | `SLACK_APP_TOKEN` | No | Slack app token for Socket Mode (`xapp-...`) |
 | `SLACK_ADMIN_USER_ID` | No | Slack user ID for admin commands (`U...`) |
-| `WEBHOOK_SECRET` | No | Secret for validating Bitbucket webhooks |
+| `WEBHOOK_SECRET` | In production | Secret for validating Bitbucket webhook signatures |
 | `PORT` | No | Server port (default: 3000) |
 
 ## Health Check

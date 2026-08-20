@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import crypto from "crypto";
 import { createBitbucketWebhookRouter } from "../src/webhooks/bitbucket.handler.js";
 import type { Request, Response } from "express";
 
@@ -35,6 +36,7 @@ vi.mock("../src/services/notification.service.js", () => ({
   },
 }));
 
+import { config } from "../src/config/env.js";
 import { prService } from "../src/services/pr.service.js";
 import { userService } from "../src/services/user.service.js";
 import { notificationService } from "../src/services/notification.service.js";
@@ -114,8 +116,18 @@ describe("Bitbucket Webhook Handler", () => {
     author: { displayName: "Author", slackUserId: "slack-author" },
   };
 
+  const WEBHOOK_SECRET = "test-webhook-secret";
+
+  function sign(rawBody: Buffer, secret = WEBHOOK_SECRET): string {
+    return `sha256=${crypto
+      .createHmac("sha256", secret)
+      .update(rawBody)
+      .digest("hex")}`;
+  }
+
   beforeEach(() => {
     router = createBitbucketWebhookRouter();
+    config.webhookSecret = "";
     vi.clearAllMocks();
 
     vi.mocked(prService.createOrUpdatePR).mockResolvedValue(mockPR as never);
@@ -132,12 +144,18 @@ describe("Bitbucket Webhook Handler", () => {
     });
   });
 
-  async function simulateWebhook(eventType: string, payload: object) {
+  async function simulateWebhook(
+    eventType: string,
+    payload: object,
+    options: { rawBody?: Buffer; signature?: string } = {}
+  ) {
     const req = {
       headers: {
         "x-event-key": eventType,
+        ...(options.signature ? { "x-hub-signature": options.signature } : {}),
       },
       body: payload,
+      rawBody: options.rawBody,
     } as unknown as Request;
 
     const res = {
@@ -154,6 +172,111 @@ describe("Bitbucket Webhook Handler", () => {
 
     return res;
   }
+
+  describe("signature verification", () => {
+    it("should accept a request whose signature matches the raw body", async () => {
+      config.webhookSecret = WEBHOOK_SECRET;
+      const rawBody = Buffer.from(JSON.stringify(mockPayload));
+
+      const res = await simulateWebhook("pullrequest:created", mockPayload, {
+        rawBody,
+        signature: sign(rawBody),
+      });
+
+      expect(prService.createOrUpdatePR).toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it("should accept a signature without the sha256 prefix", async () => {
+      config.webhookSecret = WEBHOOK_SECRET;
+      const rawBody = Buffer.from(JSON.stringify(mockPayload));
+
+      const res = await simulateWebhook("pullrequest:created", mockPayload, {
+        rawBody,
+        signature: sign(rawBody).slice("sha256=".length),
+      });
+
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it("should reject a tampered body with 401", async () => {
+      config.webhookSecret = WEBHOOK_SECRET;
+      const signedBody = Buffer.from(JSON.stringify(mockPayload));
+      const tamperedPayload = {
+        ...mockPayload,
+        pullrequest: { ...mockPayload.pullrequest, title: "Tampered PR" },
+      };
+
+      const res = await simulateWebhook(
+        "pullrequest:created",
+        tamperedPayload,
+        {
+          rawBody: Buffer.from(JSON.stringify(tamperedPayload)),
+          signature: sign(signedBody),
+        }
+      );
+
+      expect(prService.createOrUpdatePR).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(401);
+    });
+
+    it("should reject a missing signature with 401 when a secret is set", async () => {
+      config.webhookSecret = WEBHOOK_SECRET;
+      const rawBody = Buffer.from(JSON.stringify(mockPayload));
+
+      const res = await simulateWebhook("pullrequest:created", mockPayload, {
+        rawBody,
+      });
+
+      expect(prService.createOrUpdatePR).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(401);
+    });
+
+    it("should reject a signature signed with the wrong secret with 401", async () => {
+      config.webhookSecret = WEBHOOK_SECRET;
+      const rawBody = Buffer.from(JSON.stringify(mockPayload));
+
+      const res = await simulateWebhook("pullrequest:created", mockPayload, {
+        rawBody,
+        signature: sign(rawBody, "wrong-secret"),
+      });
+
+      expect(prService.createOrUpdatePR).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(401);
+    });
+
+    it("should reject a request with no raw body captured with 401", async () => {
+      config.webhookSecret = WEBHOOK_SECRET;
+
+      const res = await simulateWebhook("pullrequest:created", mockPayload, {
+        signature: sign(Buffer.from(JSON.stringify(mockPayload))),
+      });
+
+      expect(prService.createOrUpdatePR).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(401);
+    });
+
+    it("should validate a payload whose key order differs from its serialization", async () => {
+      config.webhookSecret = WEBHOOK_SECRET;
+      const reorderedJson = JSON.stringify(
+        Object.fromEntries(Object.entries(mockPayload).reverse()),
+        null,
+        2
+      );
+      const parsedBody = JSON.parse(reorderedJson);
+      const rawBody = Buffer.from(reorderedJson);
+
+      expect(JSON.stringify(parsedBody)).not.toBe(reorderedJson);
+
+      const res = await simulateWebhook("pullrequest:created", parsedBody, {
+        rawBody,
+        signature: sign(rawBody),
+      });
+
+      expect(prService.createOrUpdatePR).toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+  });
 
   describe("pullrequest:created", () => {
     it("should create PR and notify reviewers", async () => {

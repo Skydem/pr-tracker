@@ -6,6 +6,7 @@ import { prService } from "../services/pr.service.js";
 import { userService } from "../services/user.service.js";
 import { notificationService } from "../services/notification.service.js";
 import { commentDebouncer } from "../services/comment-debouncer.service.js";
+import type { RawBodyRequest } from "../types/express.types.js";
 import type {
   BitbucketWebhookPayload,
   BitbucketApprovalPayload,
@@ -14,30 +15,30 @@ import type {
   BitbucketEventType,
 } from "../types/bitbucket.types.js";
 
+const SIGNATURE_PREFIX = "sha256=";
+
 function verifyWebhookSignature(
-  payload: string,
+  rawBody: Buffer | undefined,
   signature: string | undefined
 ): boolean {
   if (!config.webhookSecret) return true;
-  if (!signature) return false;
+  if (!signature || !rawBody) return false;
 
-  // Bitbucket sends signature as "sha256=<hex>"
-  const actualSignature = signature.startsWith("sha256=")
-    ? signature.slice(7)
+  const receivedSignature = signature.startsWith(SIGNATURE_PREFIX)
+    ? signature.slice(SIGNATURE_PREFIX.length)
     : signature;
 
   const expectedSignature = crypto
     .createHmac("sha256", config.webhookSecret)
-    .update(payload)
+    .update(rawBody)
     .digest("hex");
 
-  // Ensure same length before timing-safe comparison
-  if (actualSignature.length !== expectedSignature.length) {
+  if (receivedSignature.length !== expectedSignature.length) {
     return false;
   }
 
   return crypto.timingSafeEqual(
-    Buffer.from(actualSignature),
+    Buffer.from(receivedSignature),
     Buffer.from(expectedSignature)
   );
 }
@@ -48,7 +49,7 @@ export function createBitbucketWebhookRouter(): Router {
   router.post("/", async (req: Request, res: Response) => {
     const signature = req.headers["x-hub-signature"] as string | undefined;
     const eventType = req.headers["x-event-key"] as BitbucketEventType;
-    const rawBody = JSON.stringify(req.body);
+    const { rawBody } = req as RawBodyRequest;
 
     if (!verifyWebhookSignature(rawBody, signature)) {
       res.status(401).json({ error: "Invalid signature" });
