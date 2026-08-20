@@ -10,9 +10,9 @@ have to be fixed together.
 1. **Fails open.** `src/webhooks/bitbucket.handler.ts:21` —
    `if (!config.webhookSecret) return true;` — accepts every unsigned request
    when `WEBHOOK_SECRET` is unset, and `src/config/env.ts:33` defaults it to `""`.
-   `docker-compose.yml` runs a public cloudflared tunnel, so anyone with the
-   hostname can POST forged PR events, write to the database and make the bot DM
-   real people.
+   The app is publicly reachable at `pr.torbust.work` via Traefik, so anyone with
+   the hostname can POST forged PR events, write to the database and make the bot
+   DM real people.
 
 2. **Hashes the wrong bytes.** `bitbucket.handler.ts:51` computes
    `JSON.stringify(req.body)` AFTER `express.json()` has parsed it
