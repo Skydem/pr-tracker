@@ -1,3 +1,4 @@
+import type { EventType } from "@prisma/client";
 import { prisma } from "../db/client.js";
 import { config } from "../config/env.js";
 import {
@@ -10,6 +11,7 @@ import {
   type ReviewEvent,
   type ReviewerState,
 } from "../utils/review-state.js";
+import { describeActivity } from "../utils/activity.js";
 
 export interface BoardReviewer {
   userId: string;
@@ -67,6 +69,29 @@ export interface PersonBoard {
   alreadyReviewed: BoardPullRequest[];
 }
 
+export interface ActivityEntry {
+  id: string;
+  eventType: EventType;
+  createdAt: Date;
+  actorId: string;
+  actorName: string;
+  pullRequestId: string;
+  bitbucketId: number;
+  prTitle: string;
+  prUrl: string | null;
+  repositorySlug: string;
+  workspaceSlug: string;
+  authorId: string;
+  authorName: string;
+  message: string;
+}
+
+export interface ActivityFeed {
+  entries: ActivityEntry[];
+  hasMore: boolean;
+  limit: number;
+}
+
 export class DashboardService {
   async getBoard(now: Date = new Date()): Promise<Board> {
     const records = await prisma.pullRequest.findMany({
@@ -104,15 +129,21 @@ export class DashboardService {
     };
   }
 
+  async getPersonRef(userId: string): Promise<PersonRef | null> {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, displayName: true },
+    });
+
+    return user ? { userId: user.id, displayName: user.displayName } : null;
+  }
+
   async getPersonBoard(
     userId: string,
     now: Date = new Date(),
     prebuiltBoard?: Board
   ): Promise<PersonBoard | null> {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { id: true, displayName: true },
-    });
+    const user = await this.getPersonRef(userId);
 
     if (!user) return null;
 
@@ -122,7 +153,7 @@ export class DashboardService {
       pr.reviewers.find((reviewer) => reviewer.userId === userId);
 
     return {
-      userId: user.id,
+      userId: user.userId,
       displayName: user.displayName,
       toReview: board.pullRequests.filter((pr) => {
         const entry = reviewerEntry(pr);
@@ -134,6 +165,69 @@ export class DashboardService {
         return entry !== undefined && !isAwaitingAction(entry.state);
       }),
     };
+  }
+
+  async getActivity(
+    options: { limit?: number; personId?: string } = {}
+  ): Promise<ActivityFeed> {
+    const limit = options.limit ?? 10;
+
+    const records = await prisma.pREvent.findMany({
+      where: options.personId
+        ? {
+            OR: [
+              { actorId: options.personId },
+              { pullRequest: { authorId: options.personId } },
+            ],
+          }
+        : undefined,
+      include: {
+        actor: { select: { id: true, displayName: true } },
+        pullRequest: {
+          select: {
+            id: true,
+            bitbucketId: true,
+            title: true,
+            url: true,
+            repositorySlug: true,
+            workspaceSlug: true,
+            authorId: true,
+            author: { select: { id: true, displayName: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      take: limit + 1,
+    });
+
+    const hasMore = records.length > limit;
+
+    const entries = records.slice(0, limit).map((record) => {
+      const actorIsAuthor = record.actorId === record.pullRequest.authorId;
+      return {
+        id: record.id,
+        eventType: record.eventType,
+        createdAt: record.createdAt,
+        actorId: record.actorId,
+        actorName: record.actor.displayName,
+        pullRequestId: record.pullRequest.id,
+        bitbucketId: record.pullRequest.bitbucketId,
+        prTitle: record.pullRequest.title,
+        prUrl: record.pullRequest.url,
+        repositorySlug: record.pullRequest.repositorySlug,
+        workspaceSlug: record.pullRequest.workspaceSlug,
+        authorId: record.pullRequest.authorId,
+        authorName: record.pullRequest.author.displayName,
+        message: describeActivity(
+          record.eventType,
+          record.actor.displayName,
+          record.pullRequest.author.displayName,
+          actorIsAuthor
+        ),
+      };
+    });
+
+    return { entries, hasMore, limit };
   }
 
   private buildPullRequest(

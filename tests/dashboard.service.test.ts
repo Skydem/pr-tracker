@@ -275,4 +275,84 @@ describe("DashboardService", () => {
       expect(await service.getPersonBoard("nobody", NOW)).toBeNull();
     });
   });
+
+  describe("getPersonRef", () => {
+    it("returns the person's ref", async () => {
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(people.emma as never);
+
+      expect(await service.getPersonRef(people.emma.id)).toEqual({
+        userId: people.emma.id,
+        displayName: people.emma.displayName,
+      });
+    });
+
+    it("returns null for an unknown person", async () => {
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(null as never);
+
+      expect(await service.getPersonRef("nobody")).toBeNull();
+    });
+  });
+
+  describe("getActivity", () => {
+    function eventRecord(overrides: Record<string, unknown> = {}) {
+      return {
+        id: "ev-1",
+        eventType: "PR_APPROVED",
+        createdAt: new Date("2026-08-20T11:00:00Z"),
+        actorId: people.sarah.id,
+        actor: people.sarah,
+        pullRequest: {
+          id: "pr-1",
+          bitbucketId: 482,
+          title: "Add rate limiting to webhook ingest",
+          url: "https://bitbucket.org/acme-corp/backend-api/pull-requests/482",
+          repositorySlug: "backend-api",
+          workspaceSlug: "acme-corp",
+          authorId: people.john.id,
+          author: people.john,
+        },
+        ...overrides,
+      };
+    }
+
+    it("builds a human-readable message per event", async () => {
+      vi.mocked(prisma.pREvent.findMany).mockResolvedValue([eventRecord()] as never);
+
+      const activity = await service.getActivity();
+
+      expect(activity.entries[0]!.message).toBe(
+        "Sarah Reviewer approved John Developer's PR"
+      );
+      expect(activity.hasMore).toBe(false);
+      expect(activity.limit).toBe(10);
+    });
+
+    it("marks hasMore when more rows exist than the limit", async () => {
+      vi.mocked(prisma.pREvent.findMany).mockResolvedValue(
+        Array.from({ length: 3 }, (_, i) => eventRecord({ id: `ev-${i}` })) as never
+      );
+
+      const activity = await service.getActivity({ limit: 2 });
+
+      expect(activity.entries).toHaveLength(2);
+      expect(activity.hasMore).toBe(true);
+    });
+
+    it("filters by person across both authored PRs and their own actions", async () => {
+      vi.mocked(prisma.pREvent.findMany).mockResolvedValue([eventRecord()] as never);
+
+      await service.getActivity({ personId: people.john.id });
+
+      expect(prisma.pREvent.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            OR: [
+              { actorId: people.john.id },
+              { pullRequest: { authorId: people.john.id } },
+            ],
+          },
+        })
+      );
+    });
+  });
 });
