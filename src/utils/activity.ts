@@ -31,6 +31,10 @@ export function describeActivity(
       return `${actorName} merged the PR`;
     case "PR_DECLINED":
       return `${actorName} declined the PR`;
+    case "PR_RE_REVIEW_REQUESTED":
+      return actorIsAuthor
+        ? `${authorName} asked to re-review their own PR`
+        : `${authorName} asked ${actorName} to re-review`;
   }
 }
 
@@ -43,6 +47,7 @@ export const ACTIVITY_EVENT_TOKENS: Record<EventType, string> = {
   PR_COMMENT_ADDED: "muted",
   PR_MERGED: "ok",
   PR_DECLINED: "stop",
+  PR_RE_REVIEW_REQUESTED: "rere",
 };
 
 export function clampLimit(raw: unknown, fallback = 10, max = 100): number {

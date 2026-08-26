@@ -209,6 +209,33 @@ export class SlackService {
     return { blocks: blocks as unknown as KnownBlock[], text };
   }
 
+  buildReReviewRequestedMessage(
+    pr: PRWithReviewers,
+    requesterName: string
+  ): { blocks: KnownBlock[]; text: string } {
+    const text = `${requesterName} asked you to re-review "${pr.title}"`;
+    const blocks = [
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `*Re-review Requested*\n<${pr.url}|${pr.title}>`,
+        },
+      },
+      {
+        type: "context",
+        elements: [
+          {
+            type: "mrkdwn",
+            text: `${requesterName} asked you to take another look • ${pr.workspaceSlug}/${pr.repositorySlug}`,
+          },
+        ],
+      },
+    ] as const;
+
+    return { blocks: blocks as unknown as KnownBlock[], text };
+  }
+
   buildNudgeMessage(pr: PRWithReviewers): { blocks: KnownBlock[]; text: string } {
     const text = `Reminder: Please review "${pr.title}"`;
     const blocks = [

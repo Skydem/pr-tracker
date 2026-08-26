@@ -19,6 +19,7 @@ vi.mock("../src/services/slack.service.js", () => ({
     buildAllApprovedMessage: vi.fn().mockReturnValue({ blocks: [], text: "test" }),
     buildCommentAddedMessage: vi.fn().mockReturnValue({ blocks: [], text: "test" }),
     buildNudgeMessage: vi.fn().mockReturnValue({ blocks: [], text: "test" }),
+    buildReReviewRequestedMessage: vi.fn().mockReturnValue({ blocks: [], text: "test" }),
   },
 }));
 
@@ -207,6 +208,43 @@ describe("NotificationService", () => {
       const count = await notificationService.nudgeReviewers(mockPR);
 
       expect(count).toBe(0);
+    });
+  });
+
+  describe("notifyReviewersOnReReviewRequested", () => {
+    it("should notify only the requested reviewers", async () => {
+      await notificationService.notifyReviewersOnReReviewRequested(
+        mockPR,
+        ["u1"],
+        "Author"
+      );
+
+      expect(slackService.buildReReviewRequestedMessage).toHaveBeenCalledWith(mockPR, "Author");
+      expect(slackService.sendDM).toHaveBeenCalledTimes(1);
+      expect(slackService.sendDM).toHaveBeenCalledWith("slack-r1", [], "test");
+    });
+
+    it("should skip reviewers without slack accounts", async () => {
+      const prWithNoSlack = {
+        ...mockPR,
+        reviewers: [
+          { ...mockPR.reviewers[0]!, user: { displayName: "Reviewer 1", slackUserId: null } },
+        ],
+      };
+
+      await notificationService.notifyReviewersOnReReviewRequested(
+        prWithNoSlack,
+        ["u1"],
+        "Author"
+      );
+
+      expect(slackService.sendDM).not.toHaveBeenCalled();
+    });
+
+    it("should not notify reviewers who were not selected", async () => {
+      await notificationService.notifyReviewersOnReReviewRequested(mockPR, [], "Author");
+
+      expect(slackService.sendDM).not.toHaveBeenCalled();
     });
   });
 

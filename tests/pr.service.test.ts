@@ -340,4 +340,88 @@ describe("PRService", () => {
       });
     });
   });
+
+  describe("requestReReview", () => {
+    const openPR = {
+      id: "pr-1",
+      authorId: "author-1",
+      state: "OPEN" as const,
+      reviewers: [
+        { id: "r1", pullRequestId: "pr-1", userId: "reviewer-1", status: "APPROVED", updatedAt: new Date() },
+        { id: "r2", pullRequestId: "pr-1", userId: "reviewer-2", status: "CHANGES_REQUESTED", updatedAt: new Date() },
+      ],
+    };
+
+    it("marks the selected reviewers pending and logs an event for each", async () => {
+      vi.mocked(prisma.pullRequest.findUnique).mockResolvedValue(openPR as never);
+      vi.mocked(prisma.pRReviewer.updateMany).mockResolvedValue({ count: 1 });
+      vi.mocked(prisma.pREvent.create).mockResolvedValue({} as never);
+
+      const result = await prService.requestReReview("pr-1", "author-1", ["reviewer-1"]);
+
+      expect(result).toEqual({ ok: true, requestedIds: ["reviewer-1"] });
+      expect(prisma.pRReviewer.updateMany).toHaveBeenCalledWith({
+        where: { pullRequestId: "pr-1", userId: { in: ["reviewer-1"] } },
+        data: { status: "PENDING" },
+      });
+      expect(prisma.pREvent.create).toHaveBeenCalledWith({
+        data: {
+          pullRequestId: "pr-1",
+          eventType: "PR_RE_REVIEW_REQUESTED",
+          actorId: "reviewer-1",
+          payload: { requestedBy: "author-1" },
+        },
+      });
+    });
+
+    it("ignores ids that are not reviewers on the PR", async () => {
+      vi.mocked(prisma.pullRequest.findUnique).mockResolvedValue(openPR as never);
+      vi.mocked(prisma.pRReviewer.updateMany).mockResolvedValue({ count: 2 });
+      vi.mocked(prisma.pREvent.create).mockResolvedValue({} as never);
+
+      const result = await prService.requestReReview("pr-1", "author-1", [
+        "reviewer-1",
+        "reviewer-2",
+        "not-a-reviewer",
+      ]);
+
+      expect(result).toEqual({ ok: true, requestedIds: ["reviewer-1", "reviewer-2"] });
+      expect(prisma.pREvent.create).toHaveBeenCalledTimes(2);
+    });
+
+    it("rejects when no valid reviewers were selected", async () => {
+      vi.mocked(prisma.pullRequest.findUnique).mockResolvedValue(openPR as never);
+
+      const result = await prService.requestReReview("pr-1", "author-1", ["not-a-reviewer"]);
+
+      expect(result).toEqual({ ok: false, reason: "NO_REVIEWERS_SELECTED" });
+      expect(prisma.pRReviewer.updateMany).not.toHaveBeenCalled();
+    });
+
+    it("rejects when the requester is not the author", async () => {
+      vi.mocked(prisma.pullRequest.findUnique).mockResolvedValue(openPR as never);
+
+      const result = await prService.requestReReview("pr-1", "someone-else", ["reviewer-1"]);
+
+      expect(result).toEqual({ ok: false, reason: "NOT_AUTHOR" });
+      expect(prisma.pRReviewer.updateMany).not.toHaveBeenCalled();
+    });
+
+    it("rejects when the PR does not exist or is not open", async () => {
+      vi.mocked(prisma.pullRequest.findUnique).mockResolvedValue(null);
+
+      const result = await prService.requestReReview("missing-pr", "author-1", ["reviewer-1"]);
+
+      expect(result).toEqual({ ok: false, reason: "NOT_FOUND" });
+
+      vi.mocked(prisma.pullRequest.findUnique).mockResolvedValue({
+        ...openPR,
+        state: "MERGED",
+      } as never);
+
+      const mergedResult = await prService.requestReReview("pr-1", "author-1", ["reviewer-1"]);
+
+      expect(mergedResult).toEqual({ ok: false, reason: "NOT_FOUND" });
+    });
+  });
 });

@@ -70,7 +70,31 @@ function reviewerChip(reviewer: BoardReviewer): string {
   return `<span class="chip chip-${token}" title="${escapeHtml(label)}"><span class="avatar avatar-${token}">${escapeHtml(initials(reviewer.displayName))}</span>${icon(reviewer.state, 13)}</span>`;
 }
 
-function prRow(pr: BoardPullRequest): string {
+function requestReReviewControl(pr: BoardPullRequest): string {
+  const dialogId = `rr-${pr.id}`;
+  const options = pr.reviewers
+    .map(
+      (reviewer) =>
+        `<label class="rr-option"><input type="checkbox" name="reviewerIds" value="${escapeHtml(reviewer.userId)}"><span class="avatar avatar-plain">${escapeHtml(initials(reviewer.displayName))}</span>${escapeHtml(reviewer.displayName)}</label>`
+    )
+    .join("");
+
+  return `<button type="button" class="rr-trigger" data-rr-open="${dialogId}">Request re-review</button>
+<dialog id="${dialogId}" class="rr-dialog" data-rr-dialog data-pr-id="${escapeHtml(pr.id)}">
+  <form class="rr-form" data-rr-form>
+    <div class="rr-head">Request re-review <span class="mono muted">#${pr.bitbucketId}</span></div>
+    <label class="rr-option rr-all"><input type="checkbox" data-rr-all>Select all</label>
+    <div class="rr-list">${options}</div>
+    <div class="rr-error small" data-rr-error hidden>Select at least one reviewer.</div>
+    <div class="rr-actions">
+      <button type="button" class="rr-cancel" data-rr-cancel>Cancel</button>
+      <button type="submit" class="rr-submit">Request</button>
+    </div>
+  </form>
+</dialog>`;
+}
+
+function prRow(pr: BoardPullRequest, canRequestReReview: boolean = false): string {
   const token = PR_STATE_TOKENS[pr.state];
   const titleCell = pr.url
     ? `<a href="${escapeHtml(pr.url)}" rel="noreferrer noopener" target="_blank">${escapeHtml(pr.title)}</a>`
@@ -90,7 +114,11 @@ function prRow(pr: BoardPullRequest): string {
   </div>
   <div class="row-author"><span class="avatar avatar-plain">${escapeHtml(initials(pr.authorName))}</span><span class="small">${escapeHtml(pr.authorName)}</span></div>
   <div class="row-reviewers">${pr.reviewers.map(reviewerChip).join("") || '<span class="small muted">none</span>'}</div>
-  <div class="wait-cell"><span class="mono age age-${token}">${pr.state === "READY_TO_MERGE" ? "ready" : escapeHtml(formatAge(pr.ageMs))}</span><span class="wait-note">${escapeHtml(waiting)}</span></div>
+  <div class="wait-cell">
+    <span class="mono age age-${token}">${pr.state === "READY_TO_MERGE" ? "ready" : escapeHtml(formatAge(pr.ageMs))}</span>
+    <span class="wait-note">${escapeHtml(waiting)}</span>
+    ${canRequestReReview && pr.reviewers.length > 0 ? requestReReviewControl(pr) : ""}
+  </div>
 </div>`;
 }
 
@@ -221,7 +249,7 @@ function legend(): string {
 export function renderBoard(board: Board, viewer: Viewer | null = null): string {
   const rows =
     board.pullRequests.length > 0
-      ? board.pullRequests.map(prRow).join("")
+      ? board.pullRequests.map((pr) => prRow(pr)).join("")
       : emptyState("No open pull requests. Nothing is waiting on anyone.");
 
   const rail =
@@ -263,15 +291,18 @@ export function renderPersonBoard(
   activity: ActivityFeed,
   viewer: Viewer | null = null
 ): string {
+  const isOwnProfile = viewer !== null && viewer.userId === person.userId;
+
   const section = (
     title: string,
     note: string,
     prs: BoardPullRequest[],
-    fallback: string
+    fallback: string,
+    allowReReview: boolean = false
   ): string =>
     `<section class="section">
   <div class="section-head"><span class="section-title">${escapeHtml(title)}</span><span class="mono section-count">${prs.length}</span><span class="small muted">${escapeHtml(note)}</span></div>
-  <div class="rows">${prs.length > 0 ? prs.map(prRow).join("") : emptyState(fallback)}</div>
+  <div class="rows">${prs.length > 0 ? prs.map((pr) => prRow(pr, allowReReview)).join("") : emptyState(fallback)}</div>
 </section>`;
 
   const activityItems =
@@ -281,7 +312,7 @@ export function renderPersonBoard(
 
   return layout({
     heading: person.displayName,
-    badge: viewer !== null && viewer.userId === person.userId ? "This is you" : "",
+    badge: isOwnProfile ? "This is you" : "",
     subheading: `${person.toReview.length} review${person.toReview.length === 1 ? "" : "s"} waiting on you`,
     picker: personPicker(board.everyone, person.userId, viewer?.userId ?? null),
     tabs: tabs("board", person.userId),
@@ -290,7 +321,7 @@ export function renderPersonBoard(
   <div class="main">
     <div class="stack">
       ${section("Waiting on you", "your review is what these need next", person.toReview, "Nothing is waiting on your review.")}
-      ${section("Your pull requests", "opened by you and still open", person.authored, "You have no open pull requests.")}
+      ${section("Your pull requests", "opened by you and still open", person.authored, "You have no open pull requests.", isOwnProfile)}
       ${section("Already reviewed", "you have responded, nothing needed from you", person.alreadyReviewed, "You have not reviewed any open PR yet.")}
       ${legend()}
     </div>
@@ -413,6 +444,61 @@ ${unlinkedNotice(input.viewer)}
     var next = current === "dark" ? "light" : "dark";
     root.setAttribute("data-theme", next);
     try { localStorage.setItem(key, next); } catch (error) {}
+  });
+})();
+(function () {
+  document.addEventListener("click", function (event) {
+    var opener = event.target.closest("[data-rr-open]");
+    if (opener) {
+      var dialog = document.getElementById(opener.getAttribute("data-rr-open"));
+      if (dialog) dialog.showModal();
+      return;
+    }
+    var cancel = event.target.closest("[data-rr-cancel]");
+    if (cancel) {
+      var openDialog = cancel.closest("dialog");
+      if (openDialog) openDialog.close();
+    }
+  });
+
+  document.addEventListener("change", function (event) {
+    if (!event.target.matches("[data-rr-all]")) return;
+    var dialog = event.target.closest("dialog");
+    if (!dialog) return;
+    var boxes = dialog.querySelectorAll('input[name="reviewerIds"]');
+    boxes.forEach(function (box) { box.checked = event.target.checked; });
+  });
+
+  document.addEventListener("submit", function (event) {
+    var form = event.target.closest("[data-rr-form]");
+    if (!form) return;
+    event.preventDefault();
+
+    var dialog = form.closest("dialog");
+    var errorEl = form.querySelector("[data-rr-error]");
+    var ids = Array.prototype.slice
+      .call(form.querySelectorAll('input[name="reviewerIds"]:checked'))
+      .map(function (input) { return input.value; });
+
+    if (ids.length === 0) {
+      errorEl.hidden = false;
+      return;
+    }
+    errorEl.hidden = true;
+
+    fetch("/dashboard/pr/" + dialog.getAttribute("data-pr-id") + "/request-re-review", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reviewerIds: ids }),
+    })
+      .then(function (response) {
+        if (!response.ok) throw new Error("request failed");
+        window.location.reload();
+      })
+      .catch(function () {
+        errorEl.textContent = "Could not request re-review. Try again.";
+        errorEl.hidden = false;
+      });
   });
 })();
 </script>

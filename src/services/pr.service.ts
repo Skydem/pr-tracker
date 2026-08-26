@@ -18,6 +18,10 @@ export interface PRWithReviewers extends PullRequest {
   author: { displayName: string; slackUserId: string | null };
 }
 
+export type RequestReReviewResult =
+  | { ok: true; requestedIds: string[] }
+  | { ok: false; reason: "NOT_FOUND" | "NOT_AUTHOR" | "NO_REVIEWERS_SELECTED" };
+
 export class PRService {
   async createOrUpdatePR(
     prData: BitbucketPullRequest,
@@ -329,6 +333,43 @@ export class PRService {
       userId: r.user.id,
       slackUserId: r.user.slackUserId,
     }));
+  }
+
+  async requestReReview(
+    pullRequestId: string,
+    requesterId: string,
+    reviewerIds: string[]
+  ): Promise<RequestReReviewResult> {
+    const pr = await prisma.pullRequest.findUnique({
+      where: { id: pullRequestId },
+      include: { reviewers: true },
+    });
+
+    if (!pr || pr.state !== "OPEN") return { ok: false, reason: "NOT_FOUND" };
+    if (pr.authorId !== requesterId) return { ok: false, reason: "NOT_AUTHOR" };
+
+    const eligibleReviewerIds = new Set(pr.reviewers.map((r) => r.userId));
+    const targetIds = reviewerIds.filter((id) => eligibleReviewerIds.has(id));
+
+    if (targetIds.length === 0) return { ok: false, reason: "NO_REVIEWERS_SELECTED" };
+
+    await prisma.pRReviewer.updateMany({
+      where: { pullRequestId, userId: { in: targetIds } },
+      data: { status: "PENDING" },
+    });
+
+    for (const reviewerId of targetIds) {
+      await prisma.pREvent.create({
+        data: {
+          pullRequestId,
+          eventType: "PR_RE_REVIEW_REQUESTED",
+          actorId: reviewerId,
+          payload: { requestedBy: requesterId },
+        },
+      });
+    }
+
+    return { ok: true, requestedIds: targetIds };
   }
 
   async updatePRState(pullRequestId: string, state: PRState): Promise<void> {

@@ -160,6 +160,26 @@ export class NotificationService {
     }
   }
 
+  async notifyReviewersOnReReviewRequested(
+    pr: PRWithReviewers,
+    reviewerUserIds: string[],
+    requesterName: string
+  ): Promise<void> {
+    try {
+      const { blocks, text } = slackService.buildReReviewRequestedMessage(pr, requesterName);
+      const targets = pr.reviewers.filter((reviewer) => reviewerUserIds.includes(reviewer.userId));
+
+      for (const reviewer of targets) {
+        const slackUserId = reviewer.user.slackUserId;
+        if (slackUserId && !(await this.isUserMuted(slackUserId))) {
+          await slackService.sendDM(slackUserId, blocks, text);
+        }
+      }
+    } catch (error) {
+      console.error(`[NotificationService] Failed to notify reviewers on re-review request for PR ${pr.id}:`, error);
+    }
+  }
+
   async nudgeReviewers(pr: PRWithReviewers): Promise<number> {
     try {
       const pendingReviewers = await prService.getReviewersWithStatus(

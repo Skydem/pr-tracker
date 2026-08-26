@@ -1,6 +1,9 @@
 import type { Request, Response, Router } from "express";
 import { Router as createRouter } from "express";
 import { dashboardService } from "../services/dashboard.service.js";
+import { prService } from "../services/pr.service.js";
+import { notificationService } from "../services/notification.service.js";
+import { requireViewer } from "../auth/session.js";
 import { clampLimit } from "../utils/activity.js";
 import {
   renderBoard,
@@ -78,5 +81,59 @@ export function createDashboardRouter(): Router {
     }
   });
 
+  router.post("/pr/:prId/request-re-review", requireViewer, async (req: Request, res: Response) => {
+    const viewer = req.viewer;
+
+    if (!viewer || viewer.userId === null) {
+      res.status(401).json({ error: "Sign in with Slack to do that" });
+      return;
+    }
+
+    const body = req.body as { reviewerIds?: unknown };
+    const reviewerIds = Array.isArray(body.reviewerIds)
+      ? body.reviewerIds.filter((id): id is string => typeof id === "string")
+      : [];
+
+    const result = await prService.requestReReview(req.params.prId!, viewer.userId, reviewerIds);
+
+    if (!result.ok) {
+      res.status(reReviewErrorStatus(result.reason)).json({ error: reReviewErrorMessage(result.reason) });
+      return;
+    }
+
+    const updatedPR = await prService.getPRWithReviewers(req.params.prId!).catch(() => null);
+    if (updatedPR) {
+      await notificationService.notifyReviewersOnReReviewRequested(
+        updatedPR,
+        result.requestedIds,
+        viewer.displayName
+      );
+    }
+
+    res.json({ ok: true, requested: result.requestedIds.length });
+  });
+
   return router;
+}
+
+function reReviewErrorStatus(reason: "NOT_FOUND" | "NOT_AUTHOR" | "NO_REVIEWERS_SELECTED"): number {
+  switch (reason) {
+    case "NOT_FOUND":
+      return 404;
+    case "NOT_AUTHOR":
+      return 403;
+    case "NO_REVIEWERS_SELECTED":
+      return 400;
+  }
+}
+
+function reReviewErrorMessage(reason: "NOT_FOUND" | "NOT_AUTHOR" | "NO_REVIEWERS_SELECTED"): string {
+  switch (reason) {
+    case "NOT_FOUND":
+      return "Pull request not found";
+    case "NOT_AUTHOR":
+      return "Only the author can request a re-review";
+    case "NO_REVIEWERS_SELECTED":
+      return "Select at least one reviewer";
+  }
 }
