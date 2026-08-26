@@ -85,6 +85,19 @@ PR headline state (`derivePRState`) is the worst reviewer state, in priority ord
 
 Staleness is measured from the last PR event (falling back to `updatedAt`), thresholded by `DASHBOARD_STALE_DAYS` (default 3); `READY_TO_MERGE` PRs are never marked stale.
 
+### Dashboard Sign-In
+
+"Sign in with Slack" (OpenID Connect) confirms which developer is looking at the board, so future action buttons can be authorized. Auth is optional: with `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET` and `SESSION_SECRET` unset the button disappears and the board stays anonymous.
+
+- `src/auth/auth.router.ts` - `GET /auth/slack` (redirect to Slack), `GET /auth/slack/callback` (code exchange), `POST /auth/logout`, `GET /auth/me`.
+- `src/auth/slack-oidc.ts` - authorize URL, `openid.connect.token` exchange, `id_token` claim checks (issuer, audience, expiry, nonce).
+- `src/auth/session.ts` - signed session cookie, OAuth state cookie, `attachViewer` middleware, `requireViewer` guard for authenticated endpoints.
+- `src/auth/signed-token.ts` - HMAC-SHA256 signing shared by the session and OAuth state.
+
+The session is a signed (not encrypted) cookie holding `userId`, `slackUserId` and expiry — no server-side session store. The `id_token` signature is not verified because it arrives over TLS from a direct server-to-server code exchange. CSRF on the callback is covered by a one-shot `nonce` held in both the state token and its own cookie; `SameSite=Lax` covers the action endpoints.
+
+A Slack account maps to a `User` by `slackUserId`, falling back to a case-insensitive `bitbucketEmail` match on a user that has no Slack link yet. No match means signed in but unlinked: the board says so and `requireViewer` returns 403.
+
 ### Webhook Events Handled
 
 `pullrequest:created`, `pullrequest:updated`, `pullrequest:approved`, `pullrequest:changes_request_created`, `pullrequest:comment_created`, `pullrequest:fulfilled`, `pullrequest:rejected`

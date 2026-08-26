@@ -5,7 +5,10 @@ import {
   type PRHeadlineState,
   type ReviewerState,
 } from "../utils/review-state.js";
+import { ACTIVITY_EVENT_TOKENS } from "../utils/activity.js";
 import type {
+  ActivityEntry,
+  ActivityFeed,
   Board,
   BoardPullRequest,
   BoardReviewer,
@@ -13,6 +16,7 @@ import type {
   PersonLoad,
   PersonRef,
 } from "../services/dashboard.service.js";
+import type { Viewer } from "../auth/viewer.js";
 import { DASHBOARD_STYLES } from "./dashboard.styles.js";
 
 const STATE_TOKENS: Record<ReviewerState, string> = {
@@ -117,13 +121,85 @@ function personCard(person: PersonLoad): string {
 </a>`;
 }
 
-function personPicker(people: PersonRef[], selectedId: string | null): string {
-  const chips = people.map(
-    (person) =>
-      `<a class="pick${person.userId === selectedId ? " pick-on" : ""}" href="/dashboard?person=${encodeURIComponent(person.userId)}"><span class="avatar avatar-plain">${escapeHtml(initials(person.displayName))}</span>${escapeHtml(firstName(person.displayName))}</a>`
-  );
+function personPicker(
+  people: PersonRef[],
+  selectedId: string | null,
+  viewerUserId: string | null,
+  basePath: string = "/dashboard"
+): string {
+  const chips = people.map((person) => {
+    const isViewer = person.userId === viewerUserId;
+    const classes = `pick${person.userId === selectedId ? " pick-on" : ""}${isViewer ? " pick-you" : ""}`;
+    const marker = isViewer ? '<span class="you-tag">you</span>' : "";
+    return `<a class="${classes}" href="${basePath}?person=${encodeURIComponent(person.userId)}"${isViewer ? ' title="Confirmed by Slack sign-in"' : ""}><span class="avatar avatar-plain">${escapeHtml(initials(person.displayName))}</span>${escapeHtml(firstName(person.displayName))}${marker}</a>`;
+  });
 
-  return `<nav class="picker"><span class="caps muted">I am</span><a class="pick${selectedId === null ? " pick-on" : ""}" href="/dashboard">Everyone</a>${chips.join("")}</nav>`;
+  return `<nav class="picker"><span class="caps muted">I am</span><a class="pick${selectedId === null ? " pick-on" : ""}" href="${basePath}">Everyone</a>${chips.join("")}</nav>`;
+}
+
+function slackMark(size: number): string {
+  return `<svg width="${size}" height="${size}" viewBox="0 0 122.8 122.8" aria-hidden="true" focusable="false"><path d="M25.8 77.6a12.9 12.9 0 1 1-12.9-12.9h12.9v12.9zm6.5 0a12.9 12.9 0 0 1 25.8 0v32.3a12.9 12.9 0 0 1-25.8 0V77.6z" fill="#E01E5A"></path><path d="M45.2 25.8a12.9 12.9 0 1 1 12.9-12.9v12.9H45.2zm0 6.5a12.9 12.9 0 0 1 0 25.8H12.9a12.9 12.9 0 0 1 0-25.8h32.3z" fill="#36C5F0"></path><path d="M97 45.2a12.9 12.9 0 1 1 12.9 12.9H97V45.2zm-6.5 0a12.9 12.9 0 0 1-25.8 0V12.9a12.9 12.9 0 0 1 25.8 0v32.3z" fill="#2EB67D"></path><path d="M77.6 97a12.9 12.9 0 1 1-12.9 12.9V97h12.9zm0-6.5a12.9 12.9 0 0 1 0-25.8h32.3a12.9 12.9 0 0 1 0 25.8H77.6z" fill="#ECB22E"></path></svg>`;
+}
+
+function authControls(viewer: Viewer | null): string {
+  if (viewer === null) {
+    return `<a class="signin" href="/auth/slack">${slackMark(15)}Sign in with Slack</a>`;
+  }
+
+  const label = `<span class="avatar avatar-plain">${escapeHtml(initials(viewer.displayName))}</span><span class="small">${escapeHtml(viewer.displayName)}</span>`;
+
+  const identity =
+    viewer.userId !== null
+      ? `<a class="whoami" href="/dashboard?person=${encodeURIComponent(viewer.userId)}" title="Signed in with Slack">${label}<span class="you-tag">you</span></a>`
+      : `<span class="whoami" title="Signed in with Slack">${label}<span class="badge badge-wait">Unlinked</span></span>`;
+
+  return `${identity}<form class="signout-form" method="post" action="/auth/logout?returnTo=%2Fdashboard"><button type="submit" class="signout">Sign out</button></form>`;
+}
+
+function unlinkedNotice(viewer: Viewer | null): string {
+  if (viewer === null || viewer.userId !== null) {
+    return "";
+  }
+
+  return `<div class="notice">Slack says you are <strong>${escapeHtml(viewer.displayName)}</strong>, but no tracked developer is linked to that account. An admin can connect it with <span class="mono">/pr admin link</span>.</div>`;
+}
+
+function tabs(active: "board" | "activity", personId: string | null): string {
+  const suffix = personId !== null ? `?person=${encodeURIComponent(personId)}` : "";
+  return `<nav class="tabs">
+  <a class="tab${active === "board" ? " tab-on" : ""}" href="/dashboard${suffix}">Board</a>
+  <a class="tab${active === "activity" ? " tab-on" : ""}" href="/dashboard/activity${suffix}">Recent updates</a>
+</nav>`;
+}
+
+function activityTimeAgo(entry: ActivityEntry, now: Date): string {
+  return `${formatAge(now.getTime() - entry.createdAt.getTime())} ago`;
+}
+
+function activityRow(entry: ActivityEntry, now: Date): string {
+  const token = ACTIVITY_EVENT_TOKENS[entry.eventType];
+  const prLink = entry.prUrl
+    ? `<a href="${escapeHtml(entry.prUrl)}" rel="noreferrer noopener" target="_blank">#${entry.bitbucketId} ${escapeHtml(entry.prTitle)}</a>`
+    : `<span class="mono">#${entry.bitbucketId}</span> ${escapeHtml(entry.prTitle)}`;
+
+  return `<div class="activity-row">
+  <i class="dot dot-${token}"></i>
+  <div class="activity-main">
+    <div class="activity-message">${escapeHtml(entry.message)}</div>
+    <div class="mono small muted">${prLink} &nbsp;·&nbsp; ${escapeHtml(entry.repositorySlug)} &nbsp;·&nbsp; ${escapeHtml(activityTimeAgo(entry, now))}</div>
+  </div>
+</div>`;
+}
+
+function activityRailItem(entry: ActivityEntry, now: Date): string {
+  const token = ACTIVITY_EVENT_TOKENS[entry.eventType];
+  return `<div class="activity-item">
+  <i class="dot dot-${token}"></i>
+  <div class="activity-item-body">
+    <div class="small">${escapeHtml(entry.message)}</div>
+    <div class="mono small muted">${escapeHtml(activityTimeAgo(entry, now))}</div>
+  </div>
+</div>`;
 }
 
 function countPill(token: string, count: number, label: string): string {
@@ -142,7 +218,7 @@ function legend(): string {
   return `<div class="legend"><span class="caps muted">Legend</span>${entries.join("")}</div>`;
 }
 
-export function renderBoard(board: Board): string {
+export function renderBoard(board: Board, viewer: Viewer | null = null): string {
   const rows =
     board.pullRequests.length > 0
       ? board.pullRequests.map(prRow).join("")
@@ -156,7 +232,8 @@ export function renderBoard(board: Board): string {
   return layout({
     heading: "Review floor",
     subheading: `${board.pullRequests.length} open pull request${board.pullRequests.length === 1 ? "" : "s"}`,
-    picker: personPicker(board.everyone, null),
+    picker: personPicker(board.everyone, null, viewer?.userId ?? null),
+    tabs: tabs("board", null),
     pills: [
       countPill("stop", board.counts.BLOCKED, "blocked"),
       countPill("rere", board.counts.AWAITING_RE_REVIEW, "re-review"),
@@ -175,11 +252,17 @@ export function renderBoard(board: Board): string {
     <div class="rail-note">Stale after ${board.staleDays} day${board.staleDays === 1 ? "" : "s"} without activity.</div>
   </aside>
 </div>`,
+    viewer,
     generatedAt: board.generatedAt,
   });
 }
 
-export function renderPersonBoard(person: PersonBoard, board: Board): string {
+export function renderPersonBoard(
+  person: PersonBoard,
+  board: Board,
+  activity: ActivityFeed,
+  viewer: Viewer | null = null
+): string {
   const section = (
     title: string,
     note: string,
@@ -191,27 +274,90 @@ export function renderPersonBoard(person: PersonBoard, board: Board): string {
   <div class="rows">${prs.length > 0 ? prs.map(prRow).join("") : emptyState(fallback)}</div>
 </section>`;
 
+  const activityItems =
+    activity.entries.length > 0
+      ? activity.entries.map((entry) => activityRailItem(entry, board.generatedAt)).join("")
+      : emptyState("No activity yet.");
+
   return layout({
     heading: person.displayName,
+    badge: viewer !== null && viewer.userId === person.userId ? "This is you" : "",
     subheading: `${person.toReview.length} review${person.toReview.length === 1 ? "" : "s"} waiting on you`,
-    picker: personPicker(board.everyone, person.userId),
+    picker: personPicker(board.everyone, person.userId, viewer?.userId ?? null),
+    tabs: tabs("board", person.userId),
     pills: "",
-    body: `<div class="stack">
-  ${section("Waiting on you", "your review is what these need next", person.toReview, "Nothing is waiting on your review.")}
-  ${section("Your pull requests", "opened by you and still open", person.authored, "You have no open pull requests.")}
-  ${section("Already reviewed", "you have responded, nothing needed from you", person.alreadyReviewed, "You have not reviewed any open PR yet.")}
-  ${legend()}
+    body: `<div class="split">
+  <div class="main">
+    <div class="stack">
+      ${section("Waiting on you", "your review is what these need next", person.toReview, "Nothing is waiting on your review.")}
+      ${section("Your pull requests", "opened by you and still open", person.authored, "You have no open pull requests.")}
+      ${section("Already reviewed", "you have responded, nothing needed from you", person.alreadyReviewed, "You have not reviewed any open PR yet.")}
+      ${legend()}
+    </div>
+  </div>
+  <aside class="rail">
+    <div class="caps muted">Recent activity</div>
+    <div class="rail-list activity-list">${activityItems}</div>
+    <a class="rail-note" href="/dashboard/activity?person=${encodeURIComponent(person.userId)}">View all activity &rarr;</a>
+  </aside>
 </div>`,
+    viewer,
     generatedAt: board.generatedAt,
   });
 }
 
-export function renderNotFound(message: string): string {
+export function renderActivity(
+  activity: ActivityFeed,
+  board: Board,
+  person: PersonRef | null,
+  viewer: Viewer | null = null
+): string {
+  const rows =
+    activity.entries.length > 0
+      ? activity.entries.map((entry) => activityRow(entry, board.generatedAt)).join("")
+      : emptyState(person ? "No activity yet for this person." : "No activity yet.");
+
+  const loadMoreHref = `/dashboard/activity?limit=${activity.limit + 10}${person ? `&person=${encodeURIComponent(person.userId)}` : ""}`;
+  const loadMore = activity.hasMore
+    ? `<div class="load-more"><a class="pick" href="${loadMoreHref}">Load more</a></div>`
+    : "";
+
   return layout({
-    heading: "Not found",
+    heading: person ? `${person.displayName} · Recent updates` : "Recent updates",
+    subheading: `${activity.entries.length} shown`,
+    picker: personPicker(
+      board.everyone,
+      person?.userId ?? null,
+      viewer?.userId ?? null,
+      "/dashboard/activity"
+    ),
+    tabs: tabs("activity", person?.userId ?? null),
+    pills: "",
+    body: `<div class="stack">
+  <div class="activity-list activity-list-wide">${rows}</div>
+  ${loadMore}
+</div>`,
+    viewer,
+    generatedAt: board.generatedAt,
+  });
+}
+
+export function renderNotFound(message: string, viewer: Viewer | null = null): string {
+  return renderMessage("Not found", message, viewer);
+}
+
+export function renderMessage(
+  heading: string,
+  message: string,
+  viewer: Viewer | null = null
+): string {
+  return layout({
+    heading,
     subheading: "",
     picker: "",
+    tabs: "",
     pills: "",
+    viewer,
     body: `<div class="stack">${emptyState(message)}<div><a class="pick" href="/dashboard">Back to the board</a></div></div>`,
     generatedAt: new Date(),
   });
@@ -219,10 +365,13 @@ export function renderNotFound(message: string): string {
 
 interface LayoutInput {
   heading: string;
+  badge?: string;
   subheading: string;
   picker: string;
+  tabs: string;
   pills: string;
   body: string;
+  viewer: Viewer | null;
   generatedAt: Date;
 }
 
@@ -241,10 +390,12 @@ function layout(input: LayoutInput): string {
 </head>
 <body>
 <header class="topbar">
-  <div class="brand"><span class="mark"></span><span class="wordmark">${escapeHtml(input.heading)}</span><span class="small muted">${escapeHtml(input.subheading)}</span></div>
-  <div class="topbar-right">${input.pills}<button type="button" class="theme" data-theme-toggle aria-label="Toggle dark and light theme"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path></svg></button></div>
+  <div class="brand"><span class="mark"></span><span class="wordmark">${escapeHtml(input.heading)}</span>${input.badge ? `<span class="you-tag">${escapeHtml(input.badge)}</span>` : ""}<span class="small muted">${escapeHtml(input.subheading)}</span></div>
+  <div class="topbar-right">${input.pills}${authControls(input.viewer)}<button type="button" class="theme" data-theme-toggle aria-label="Toggle dark and light theme"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path></svg></button></div>
 </header>
+${input.tabs}
 ${input.picker}
+${unlinkedNotice(input.viewer)}
 <main>${input.body}</main>
 <footer class="foot mono muted">Updated ${escapeHtml(formatTimestamp(input.generatedAt))} · read-only</footer>
 <script>

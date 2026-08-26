@@ -4,6 +4,9 @@ import express from "express";
 import { config } from "./config/env.js";
 import { createBitbucketWebhookRouter } from "./webhooks/bitbucket.handler.js";
 import { createDashboardRouter } from "./dashboard/dashboard.router.js";
+import { createActivityApiRouter } from "./api/activity.router.js";
+import { createAuthRouter } from "./auth/auth.router.js";
+import { attachViewer } from "./auth/session.js";
 import { registerAllCommands } from "./commands/index.js";
 import { userService } from "./services/user.service.js";
 import { slackService } from "./services/slack.service.js";
@@ -29,9 +32,13 @@ async function main() {
 
   // Separate Express server for HTTP endpoints (webhooks, health)
   const httpServer = express();
+  httpServer.set("trust proxy", true);
   httpServer.use(express.json());
   httpServer.use("/webhooks/bitbucket", createBitbucketWebhookRouter());
+  httpServer.use(attachViewer);
+  httpServer.use("/auth", createAuthRouter());
   httpServer.use("/dashboard", createDashboardRouter());
+  httpServer.use("/api", createActivityApiRouter());
   httpServer.get("/", (_req, res) => {
     res.redirect("/dashboard");
   });

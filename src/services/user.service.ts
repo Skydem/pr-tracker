@@ -122,6 +122,37 @@ export class UserService {
     return null;
   }
 
+  async findBySlackIdentity(
+    slackUserId: string,
+    email: string | null
+  ): Promise<User | null> {
+    const bySlackId = await prisma.user.findUnique({ where: { slackUserId } });
+
+    if (bySlackId) {
+      return bySlackId;
+    }
+
+    if (!email) {
+      return null;
+    }
+
+    const byEmail = await prisma.user.findFirst({
+      where: {
+        bitbucketEmail: { equals: email, mode: "insensitive" },
+        slackUserId: null,
+      },
+    });
+
+    if (!byEmail) {
+      return null;
+    }
+
+    return prisma.user.update({
+      where: { id: byEmail.id },
+      data: { slackUserId },
+    });
+  }
+
   async getUserBySlackId(slackUserId: string): Promise<User | null> {
     return prisma.user.findUnique({
       where: { slackUserId },

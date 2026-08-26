@@ -29,6 +29,15 @@ export const config = {
     signingSecret: requireEnv("SLACK_SIGNING_SECRET"),
     appToken: requireEnv("SLACK_APP_TOKEN"),
     adminUserId: optionalEnv("SLACK_ADMIN_USER_ID", ""),
+    clientId: optionalEnv("SLACK_CLIENT_ID", ""),
+    clientSecret: optionalEnv("SLACK_CLIENT_SECRET", ""),
+    teamId: optionalEnv("SLACK_TEAM_ID", ""),
+  },
+
+  auth: {
+    sessionSecret: optionalEnv("SESSION_SECRET", ""),
+    sessionDays: optionalIntEnv("SESSION_DAYS", 30),
+    publicUrl: optionalEnv("PUBLIC_URL", "").replace(/\/+$/, ""),
   },
 
   webhookSecret: optionalEnv("WEBHOOK_SECRET", ""),
