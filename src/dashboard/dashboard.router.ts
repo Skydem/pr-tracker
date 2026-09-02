@@ -113,6 +113,29 @@ export function createDashboardRouter(): Router {
     res.json({ ok: true, requested: result.requestedIds.length });
   });
 
+  router.post("/pr/:prId/mark-re-reviewed", requireViewer, async (req: Request, res: Response) => {
+    const viewer = req.viewer;
+
+    if (!viewer || viewer.userId === null) {
+      res.status(401).json({ error: "Sign in with Slack to do that" });
+      return;
+    }
+
+    const result = await prService.markReReviewed(req.params.prId!, viewer.userId);
+
+    if (!result.ok) {
+      res.status(reReviewedErrorStatus(result.reason)).json({ error: reReviewedErrorMessage(result.reason) });
+      return;
+    }
+
+    const updatedPR = await prService.getPRWithReviewers(req.params.prId!).catch(() => null);
+    if (updatedPR) {
+      await notificationService.notifyAuthorOnReReviewed(updatedPR, viewer.displayName);
+    }
+
+    res.json({ ok: true });
+  });
+
   return router;
 }
 
@@ -135,5 +158,27 @@ function reReviewErrorMessage(reason: "NOT_FOUND" | "NOT_AUTHOR" | "NO_REVIEWERS
       return "Only the author can request a re-review";
     case "NO_REVIEWERS_SELECTED":
       return "Select at least one reviewer";
+  }
+}
+
+function reReviewedErrorStatus(reason: "NOT_FOUND" | "NOT_REVIEWER" | "NOT_AWAITING_RE_REVIEW"): number {
+  switch (reason) {
+    case "NOT_FOUND":
+      return 404;
+    case "NOT_REVIEWER":
+      return 403;
+    case "NOT_AWAITING_RE_REVIEW":
+      return 400;
+  }
+}
+
+function reReviewedErrorMessage(reason: "NOT_FOUND" | "NOT_REVIEWER" | "NOT_AWAITING_RE_REVIEW"): string {
+  switch (reason) {
+    case "NOT_FOUND":
+      return "Pull request not found";
+    case "NOT_REVIEWER":
+      return "Only a reviewer on this PR can do that";
+    case "NOT_AWAITING_RE_REVIEW":
+      return "No re-review was requested from you";
   }
 }

@@ -424,4 +424,113 @@ describe("PRService", () => {
       expect(mergedResult).toEqual({ ok: false, reason: "NOT_FOUND" });
     });
   });
+
+  describe("markReReviewed", () => {
+    const prWithPendingReviewer = {
+      id: "pr-1",
+      state: "OPEN" as const,
+      reviewers: [
+        { id: "r1", pullRequestId: "pr-1", userId: "reviewer-1", status: "PENDING", updatedAt: new Date() },
+      ],
+      events: [
+        {
+          id: "e1",
+          pullRequestId: "pr-1",
+          eventType: "PR_APPROVED",
+          actorId: "reviewer-1",
+          createdAt: new Date("2026-08-19T09:00:00Z"),
+        },
+        {
+          id: "e2",
+          pullRequestId: "pr-1",
+          eventType: "PR_RE_REVIEW_REQUESTED",
+          actorId: "reviewer-1",
+          createdAt: new Date("2026-08-20T09:00:00Z"),
+        },
+      ],
+    };
+
+    it("restores the reviewer's last verdict and logs a re-reviewed event", async () => {
+      vi.mocked(prisma.pullRequest.findUnique).mockResolvedValue(prWithPendingReviewer as never);
+      vi.mocked(prisma.pRReviewer.updateMany).mockResolvedValue({ count: 1 });
+      vi.mocked(prisma.pREvent.create).mockResolvedValue({} as never);
+
+      const result = await prService.markReReviewed("pr-1", "reviewer-1");
+
+      expect(result).toEqual({ ok: true });
+      expect(prisma.pRReviewer.updateMany).toHaveBeenCalledWith({
+        where: { pullRequestId: "pr-1", userId: "reviewer-1" },
+        data: { status: "APPROVED" },
+      });
+      expect(prisma.pREvent.create).toHaveBeenCalledWith({
+        data: {
+          pullRequestId: "pr-1",
+          eventType: "PR_RE_REVIEWED",
+          actorId: "reviewer-1",
+        },
+      });
+    });
+
+    it("restores CHANGES_REQUESTED when that was the reviewer's last verdict", async () => {
+      const prWithChangesRequestedVerdict = {
+        ...prWithPendingReviewer,
+        events: [
+          { ...prWithPendingReviewer.events[0]!, eventType: "PR_CHANGES_REQUESTED" },
+          prWithPendingReviewer.events[1]!,
+        ],
+      };
+      vi.mocked(prisma.pullRequest.findUnique).mockResolvedValue(prWithChangesRequestedVerdict as never);
+      vi.mocked(prisma.pRReviewer.updateMany).mockResolvedValue({ count: 1 });
+      vi.mocked(prisma.pREvent.create).mockResolvedValue({} as never);
+
+      const result = await prService.markReReviewed("pr-1", "reviewer-1");
+
+      expect(result).toEqual({ ok: true });
+      expect(prisma.pRReviewer.updateMany).toHaveBeenCalledWith({
+        where: { pullRequestId: "pr-1", userId: "reviewer-1" },
+        data: { status: "CHANGES_REQUESTED" },
+      });
+    });
+
+    it("rejects when the reviewer is not pending a manual re-review request", async () => {
+      vi.mocked(prisma.pullRequest.findUnique).mockResolvedValue({
+        ...prWithPendingReviewer,
+        reviewers: [{ ...prWithPendingReviewer.reviewers[0]!, status: "APPROVED" }],
+      } as never);
+
+      const result = await prService.markReReviewed("pr-1", "reviewer-1");
+
+      expect(result).toEqual({ ok: false, reason: "NOT_AWAITING_RE_REVIEW" });
+      expect(prisma.pRReviewer.updateMany).not.toHaveBeenCalled();
+    });
+
+    it("rejects when the reviewer has no prior verdict to restore", async () => {
+      vi.mocked(prisma.pullRequest.findUnique).mockResolvedValue({
+        ...prWithPendingReviewer,
+        events: [],
+      } as never);
+
+      const result = await prService.markReReviewed("pr-1", "reviewer-1");
+
+      expect(result).toEqual({ ok: false, reason: "NOT_AWAITING_RE_REVIEW" });
+      expect(prisma.pRReviewer.updateMany).not.toHaveBeenCalled();
+    });
+
+    it("rejects when the requester is not a reviewer on the PR", async () => {
+      vi.mocked(prisma.pullRequest.findUnique).mockResolvedValue(prWithPendingReviewer as never);
+
+      const result = await prService.markReReviewed("pr-1", "someone-else");
+
+      expect(result).toEqual({ ok: false, reason: "NOT_REVIEWER" });
+      expect(prisma.pRReviewer.updateMany).not.toHaveBeenCalled();
+    });
+
+    it("rejects when the PR does not exist or is not open", async () => {
+      vi.mocked(prisma.pullRequest.findUnique).mockResolvedValue(null);
+
+      const result = await prService.markReReviewed("missing-pr", "reviewer-1");
+
+      expect(result).toEqual({ ok: false, reason: "NOT_FOUND" });
+    });
+  });
 });

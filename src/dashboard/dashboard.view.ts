@@ -94,7 +94,15 @@ function requestReReviewControl(pr: BoardPullRequest): string {
 </dialog>`;
 }
 
-function prRow(pr: BoardPullRequest, canRequestReReview: boolean = false): string {
+function markReReviewedControl(pr: BoardPullRequest): string {
+  return `<button type="button" class="rr-trigger" data-mark-re-reviewed data-pr-id="${escapeHtml(pr.id)}">I re-reviewed it</button>`;
+}
+
+function prRow(
+  pr: BoardPullRequest,
+  canRequestReReview: boolean = false,
+  viewerUserId: string | null = null
+): string {
   const token = PR_STATE_TOKENS[pr.state];
   const titleCell = pr.url
     ? `<a href="${escapeHtml(pr.url)}" rel="noreferrer noopener" target="_blank">${escapeHtml(pr.title)}</a>`
@@ -107,6 +115,11 @@ function prRow(pr: BoardPullRequest, canRequestReReview: boolean = false): strin
         ? `on ${pr.waitingOn.map(firstName).join(", ")}`
         : "no reviewers assigned";
 
+  const viewerReviewer = viewerUserId
+    ? pr.reviewers.find((reviewer) => reviewer.userId === viewerUserId)
+    : undefined;
+  const showMarkReReviewed = viewerReviewer?.manualReReviewPending === true;
+
   return `<div class="row row-${token}">
   <div class="row-main">
     <div class="row-title"><span class="mono muted">#${pr.bitbucketId}</span><span class="title">${titleCell}</span>${pr.stale ? '<span class="badge badge-wait">Stale</span>' : ""}</div>
@@ -118,6 +131,7 @@ function prRow(pr: BoardPullRequest, canRequestReReview: boolean = false): strin
     <span class="mono age age-${token}">${pr.state === "READY_TO_MERGE" ? "ready" : escapeHtml(formatAge(pr.ageMs))}</span>
     <span class="wait-note">${escapeHtml(waiting)}</span>
     ${canRequestReReview && pr.reviewers.length > 0 ? requestReReviewControl(pr) : ""}
+    ${showMarkReReviewed ? markReReviewedControl(pr) : ""}
   </div>
 </div>`;
 }
@@ -298,11 +312,12 @@ export function renderPersonBoard(
     note: string,
     prs: BoardPullRequest[],
     fallback: string,
-    allowReReview: boolean = false
+    allowReReview: boolean = false,
+    viewerUserIdForRow: string | null = null
   ): string =>
     `<section class="section">
   <div class="section-head"><span class="section-title">${escapeHtml(title)}</span><span class="mono section-count">${prs.length}</span><span class="small muted">${escapeHtml(note)}</span></div>
-  <div class="rows">${prs.length > 0 ? prs.map((pr) => prRow(pr, allowReReview)).join("") : emptyState(fallback)}</div>
+  <div class="rows">${prs.length > 0 ? prs.map((pr) => prRow(pr, allowReReview, viewerUserIdForRow)).join("") : emptyState(fallback)}</div>
 </section>`;
 
   const activityItems =
@@ -320,7 +335,7 @@ export function renderPersonBoard(
     body: `<div class="split">
   <div class="main">
     <div class="stack">
-      ${section("Waiting on you", "your review is what these need next", person.toReview, "Nothing is waiting on your review.")}
+      ${section("Waiting on you", "your review is what these need next", person.toReview, "Nothing is waiting on your review.", false, isOwnProfile ? person.userId : null)}
       ${section("Your pull requests", "opened by you and still open", person.authored, "You have no open pull requests.", isOwnProfile)}
       ${section("Already reviewed", "you have responded, nothing needed from you", person.alreadyReviewed, "You have not reviewed any open PR yet.")}
       ${legend()}
@@ -448,6 +463,23 @@ ${unlinkedNotice(input.viewer)}
 })();
 (function () {
   document.addEventListener("click", function (event) {
+    var markBtn = event.target.closest("[data-mark-re-reviewed]");
+    if (markBtn) {
+      markBtn.disabled = true;
+      fetch("/dashboard/pr/" + markBtn.getAttribute("data-pr-id") + "/mark-re-reviewed", {
+        method: "POST",
+      })
+        .then(function (response) {
+          if (!response.ok) throw new Error("request failed");
+          window.location.reload();
+        })
+        .catch(function () {
+          markBtn.disabled = false;
+          markBtn.textContent = "Could not update. Try again.";
+        });
+      return;
+    }
+
     var opener = event.target.closest("[data-rr-open]");
     if (opener) {
       var dialog = document.getElementById(opener.getAttribute("data-rr-open"));

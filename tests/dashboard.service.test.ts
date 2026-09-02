@@ -86,6 +86,30 @@ describe("DashboardService", () => {
       expect(pr.waitingOn).toEqual(["Mike Tech Lead", "Emma Senior Dev"]);
     });
 
+    it("flags manualReReviewPending only for a reset verdict, not a push-staled one", async () => {
+      vi.mocked(prisma.pullRequest.findMany).mockResolvedValue([
+        prRecord({
+          reviewers: [
+            reviewer(people.sarah, "PENDING"),
+            reviewer(people.mike, "CHANGES_REQUESTED"),
+          ],
+          events: [
+            { eventType: "PR_APPROVED", actorId: people.sarah.id, createdAt: new Date("2026-08-18T09:00:00Z") },
+            { eventType: "PR_CHANGES_REQUESTED", actorId: people.mike.id, createdAt: new Date("2026-08-18T09:00:00Z") },
+            { eventType: "PR_COMMITS_PUSHED", actorId: people.john.id, createdAt: new Date("2026-08-19T09:00:00Z") },
+          ],
+        }),
+      ] as never);
+
+      const board = await service.getBoard(NOW);
+      const [sarah, mike] = board.pullRequests[0]!.reviewers;
+
+      expect(sarah!.state).toBe("AWAITING_RE_REVIEW");
+      expect(sarah!.manualReReviewPending).toBe(true);
+      expect(mike!.state).toBe("AWAITING_RE_REVIEW");
+      expect(mike!.manualReReviewPending).toBe(false);
+    });
+
     it("points a blocked PR back at its author", async () => {
       vi.mocked(prisma.pullRequest.findMany).mockResolvedValue([
         prRecord({

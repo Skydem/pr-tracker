@@ -22,6 +22,10 @@ export type RequestReReviewResult =
   | { ok: true; requestedIds: string[] }
   | { ok: false; reason: "NOT_FOUND" | "NOT_AUTHOR" | "NO_REVIEWERS_SELECTED" };
 
+export type MarkReReviewedResult =
+  | { ok: true }
+  | { ok: false; reason: "NOT_FOUND" | "NOT_REVIEWER" | "NOT_AWAITING_RE_REVIEW" };
+
 export class PRService {
   async createOrUpdatePR(
     prData: BitbucketPullRequest,
@@ -370,6 +374,50 @@ export class PRService {
     }
 
     return { ok: true, requestedIds: targetIds };
+  }
+
+  async markReReviewed(
+    pullRequestId: string,
+    reviewerId: string
+  ): Promise<MarkReReviewedResult> {
+    const pr = await prisma.pullRequest.findUnique({
+      where: { id: pullRequestId },
+      include: { reviewers: true, events: true },
+    });
+
+    if (!pr || pr.state !== "OPEN") return { ok: false, reason: "NOT_FOUND" };
+
+    const reviewer = pr.reviewers.find((r) => r.userId === reviewerId);
+    if (!reviewer) return { ok: false, reason: "NOT_REVIEWER" };
+    if (reviewer.status !== "PENDING") return { ok: false, reason: "NOT_AWAITING_RE_REVIEW" };
+
+    const lastVerdict = pr.events
+      .filter(
+        (event) =>
+          event.actorId === reviewerId &&
+          (event.eventType === "PR_APPROVED" || event.eventType === "PR_CHANGES_REQUESTED")
+      )
+      .reduce<(typeof pr.events)[number] | null>(
+        (latest, event) => (latest === null || event.createdAt > latest.createdAt ? event : latest),
+        null
+      );
+
+    if (!lastVerdict) return { ok: false, reason: "NOT_AWAITING_RE_REVIEW" };
+
+    await prisma.pRReviewer.updateMany({
+      where: { pullRequestId, userId: reviewerId },
+      data: { status: lastVerdict.eventType === "PR_APPROVED" ? "APPROVED" : "CHANGES_REQUESTED" },
+    });
+
+    await prisma.pREvent.create({
+      data: {
+        pullRequestId,
+        eventType: "PR_RE_REVIEWED",
+        actorId: reviewerId,
+      },
+    });
+
+    return { ok: true };
   }
 
   async updatePRState(pullRequestId: string, state: PRState): Promise<void> {

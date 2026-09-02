@@ -20,6 +20,7 @@ vi.mock("../src/services/slack.service.js", () => ({
     buildCommentAddedMessage: vi.fn().mockReturnValue({ blocks: [], text: "test" }),
     buildNudgeMessage: vi.fn().mockReturnValue({ blocks: [], text: "test" }),
     buildReReviewRequestedMessage: vi.fn().mockReturnValue({ blocks: [], text: "test" }),
+    buildReReviewedMessage: vi.fn().mockReturnValue({ blocks: [], text: "test" }),
   },
 }));
 
@@ -208,6 +209,33 @@ describe("NotificationService", () => {
       const count = await notificationService.nudgeReviewers(mockPR);
 
       expect(count).toBe(0);
+    });
+  });
+
+  describe("notifyAuthorOnReReviewed", () => {
+    it("should notify author", async () => {
+      await notificationService.notifyAuthorOnReReviewed(mockPR, "Reviewer Name");
+
+      expect(slackService.buildReReviewedMessage).toHaveBeenCalledWith(
+        mockPR,
+        "Reviewer Name"
+      );
+      expect(slackService.sendDM).toHaveBeenCalledWith(
+        "slack-author",
+        [],
+        "test"
+      );
+    });
+
+    it("should not notify if author has no slack account", async () => {
+      const prWithNoSlack = {
+        ...mockPR,
+        author: { displayName: "Author", slackUserId: null },
+      };
+
+      await notificationService.notifyAuthorOnReReviewed(prWithNoSlack, "Reviewer");
+
+      expect(slackService.sendDM).not.toHaveBeenCalled();
     });
   });
 

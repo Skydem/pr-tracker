@@ -17,6 +17,7 @@ export interface BoardReviewer {
   userId: string;
   displayName: string;
   state: ReviewerState;
+  manualReReviewPending: boolean;
 }
 
 export interface BoardPullRequest {
@@ -248,15 +249,20 @@ export class DashboardService {
     now: Date,
     staleDays: number
   ): BoardPullRequest {
-    const reviewers: BoardReviewer[] = record.reviewers.map((reviewer) => ({
-      userId: reviewer.user.id,
-      displayName: reviewer.user.displayName,
-      state: deriveReviewerState(
+    const reviewers: BoardReviewer[] = record.reviewers.map((reviewer) => {
+      const state = deriveReviewerState(
         reviewer.status as "PENDING" | "APPROVED" | "CHANGES_REQUESTED",
         reviewer.user.id,
         record.events
-      ),
-    }));
+      );
+
+      return {
+        userId: reviewer.user.id,
+        displayName: reviewer.user.displayName,
+        state,
+        manualReReviewPending: reviewer.status === "PENDING" && state === "AWAITING_RE_REVIEW",
+      };
+    });
 
     const state = derivePRState(reviewers.map((reviewer) => reviewer.state));
     const lastActivityAt = this.lastActivityAt(record.events, record.updatedAt);
