@@ -4,3 +4,5 @@ dist/
 *.log
 .DS_Store
 design/pr-status-dashboard.html
+upload/
+repos/

@@ -2,6 +2,10 @@ import type { App } from "@slack/bolt";
 import type { KnownBlock } from "@slack/types";
 import type { PRWithReviewers } from "./pr.service.js";
 
+export type AiReviewOutcome = { ok: true } | { ok: false; error: string };
+
+const AI_REVIEW_ERROR_EXCERPT_CHARS = 300;
+
 export class SlackService {
   private app: App | null = null;
 
@@ -230,6 +234,33 @@ export class SlackService {
             text: `${requesterName} asked you to take another look • ${pr.workspaceSlug}/${pr.repositorySlug}`,
           },
         ],
+      },
+    ] as const;
+
+    return { blocks: blocks as unknown as KnownBlock[], text };
+  }
+
+  buildAiReviewFinishedMessage(
+    pr: PRWithReviewers,
+    outcome: AiReviewOutcome
+  ): { blocks: KnownBlock[]; text: string } {
+    const text = outcome.ok
+      ? `AI review posted on "${pr.title}"`
+      : `AI review failed for "${pr.title}"`;
+    const headline = outcome.ok
+      ? `*AI review posted*\n<${pr.url}|${pr.title}>\nThe findings are in a comment on the pull request.`
+      : `*AI review failed*\n<${pr.url}|${pr.title}>\nYou can retry it from the dashboard.`;
+    const detail = outcome.ok
+      ? `${pr.workspaceSlug}/${pr.repositorySlug}`
+      : `${outcome.error.slice(0, AI_REVIEW_ERROR_EXCERPT_CHARS)} • ${pr.workspaceSlug}/${pr.repositorySlug}`;
+    const blocks = [
+      {
+        type: "section",
+        text: { type: "mrkdwn", text: headline },
+      },
+      {
+        type: "context",
+        elements: [{ type: "mrkdwn", text: detail }],
       },
     ] as const;
 

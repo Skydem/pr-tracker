@@ -21,6 +21,7 @@ model User {
   authoredPRs PullRequest[] @relation("Author")
   reviews     PRReviewer[]
   events      PREvent[]
+  aiReviewRequests AiReview[]
 }
 
 model PullRequest {
@@ -41,6 +42,7 @@ model PullRequest {
 
   reviewers PRReviewer[]
   events    PREvent[]
+  aiReview  AiReview?
 
   @@unique([bitbucketId, repositorySlug, workspaceSlug])
 }
@@ -68,6 +70,30 @@ model PREvent {
   createdAt     DateTime    @default(now())
 }
 
+model AiReview {
+  id            String         @id @default(uuid())
+  pullRequestId String         @unique
+  pullRequest   PullRequest    @relation(fields: [pullRequestId], references: [id], onDelete: Cascade)
+  requestedById String
+  requestedBy   User           @relation(fields: [requestedById], references: [id])
+  status        AiReviewStatus @default(QUEUED)
+  model         String
+  summary       String?
+  error         String?
+  costUsd       Float?
+  startedAt     DateTime?
+  finishedAt    DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+enum AiReviewStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
 enum PRState {
   OPEN
   MERGED
@@ -91,5 +117,8 @@ enum EventType {
   PR_DECLINED
   PR_RE_REVIEW_REQUESTED
   PR_RE_REVIEWED
+  PR_AI_REVIEW_REQUESTED
+  PR_AI_REVIEW_COMPLETED
+  PR_AI_REVIEW_FAILED
 }
 

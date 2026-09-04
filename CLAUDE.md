@@ -98,6 +98,17 @@ The session is a signed (not encrypted) cookie holding `userId`, `slackUserId` a
 
 A Slack account maps to a `User` by `slackUserId`, falling back to a case-insensitive `bitbucketEmail` match on a user that has no Slack link yet. No match means signed in but unlinked: the board says so and `requireViewer` returns 403.
 
+### AI Code Review
+
+"Request AI review" appears on a signed-in author's own open PRs (person board → "Your pull requests"). It runs the Claude Code review plugin kept in `ai-review/code-review-bitbucket` (baked into the image) headless from the reviewed repo's checkout, and the command itself posts each finding as an inline Bitbucket comment on the line it concerns (a single general comment only when nothing is found). Each PR gets exactly one review: a `COMPLETED` review can never be re-run, only a `FAILED` one can be retried. The review reads code only — the headless run has no Bash/Edit/Write tools, so it cannot run tests, linters or builds.
+
+- `src/services/ai-review.service.ts` - `request()` (author-only, one-per-PR guard via the unique `AiReview.pullRequestId`), an in-process sequential queue, `recoverInterrupted()` at startup (rows left `QUEUED`/`RUNNING` by a restart become `FAILED`).
+- `src/services/ai-review-runner.ts` - Spawns `claude --print --model sonnet --effort medium --plugin-dir ai-review/code-review-bitbucket ... "/code-review-bitbucket:code-review <workspace>/<repo>/<id>"` with `cwd` = the repo checkout, parses the JSON result. The model is always Sonnet at medium effort; both are passed as CLI flags so the mounted `~/.claude/settings.json` (`effortLevel`, model) cannot override them. The Bitbucket MCP server (`bitbucketMcp`, so the command's `mcp__bitbucketMcp__bb_get`/`bb_post` tool names resolve) is passed inline via `--mcp-config` using `AI_REVIEW_BITBUCKET_EMAIL`/`AI_REVIEW_BITBUCKET_API_TOKEN` (fallback `BITBUCKET_EMAIL`/`BITBUCKET_API_TOKEN`; the token must have `write:pullrequest` to post the comment).
+- `POST /dashboard/pr/:prId/request-ai-review` (`requireViewer`) → 202, or 403 not author / 409 already reviewed or running / 503 not configured.
+- `AiReview` model: status `QUEUED` → `RUNNING` → `COMPLETED` | `FAILED`, plus `summary` (Claude's final message), `error`, `costUsd`. Events `PR_AI_REVIEW_REQUESTED` / `PR_AI_REVIEW_COMPLETED` / `PR_AI_REVIEW_FAILED` feed the activity rail; the author gets a Slack DM when the review finishes.
+- Config: `AI_REVIEW_REPO_PATH` enables the feature (checkout of the reviewed repo, gitignored under `repos/`; the review runs from it to load its skills/CLAUDE.md files). The plugin does not need to exist inside that checkout. Optional `AI_REVIEW_PLUGIN_PATH`, `AI_REVIEW_COMMAND`, `AI_REVIEW_CLAUDE_BIN`, `AI_REVIEW_BITBUCKET_MCP_COMMAND`, `AI_REVIEW_BITBUCKET_EMAIL`, `AI_REVIEW_BITBUCKET_API_TOKEN`, `AI_REVIEW_TIMEOUT_MINUTES` (default 30).
+- Docker: the image installs the Claude Code CLI and the Bitbucket MCP server, runs as the host uid (`APP_UID`/`APP_GID`) and mounts `~/.claude` (OAuth credentials, settings, project memory) at `/home/app/.claude` with `CLAUDE_CONFIG_DIR` pointing there; the repo checkout is mounted at the same absolute path as on the host so Claude's per-project memory matches.
+
 ### Webhook Events Handled
 
 `pullrequest:created`, `pullrequest:updated`, `pullrequest:approved`, `pullrequest:changes_request_created`, `pullrequest:comment_created`, `pullrequest:fulfilled`, `pullrequest:rejected`
@@ -112,6 +123,7 @@ All commands use `/pr` prefix: `status <ws/repo/id>`, `my-reviews`, `my-prs`, `n
 - **PullRequest**: Unique by (bitbucketId, repositorySlug, workspaceSlug). `sourceCommitHash` holds the branch head last seen; comparing it against an incoming payload is how a real push is told apart from a title/description edit.
 - **PRReviewer**: Junction table with review status
 - **PREvent**: Audit log of all PR events. `PR_COMMITS_PUSHED` is ours, not Bitbucket's — emitted only when `sourceCommitHash` actually changes, and it is what invalidates stale reviewer verdicts.
+- **AiReview**: At most one per PullRequest (unique `pullRequestId`); who requested it, status, Claude's final message and cost.
 
 ### Testing
 

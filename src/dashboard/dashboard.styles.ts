@@ -110,6 +110,10 @@ main { padding: 22px 24px 8px; max-width: 1680px; }
 .chip-rere { background: var(--rere-bg); } .chip-stop { background: var(--stop-bg); }
 .badge { padding: 2px 8px; border-radius: 5px; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
 .badge-wait { background: var(--wait-bg); color: var(--wait); }
+.badge-ok { background: var(--ok-bg); color: var(--ok); }
+.badge-rere { background: var(--rere-bg); color: var(--rere); }
+.badge-stop { background: var(--stop-bg); color: var(--stop); }
+.rr-trigger:disabled { opacity: 0.6; cursor: default; }
 .rail { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; display: flex; flex-direction: column; gap: 14px; }
 .rail-list { display: flex; flex-direction: column; gap: 13px; }
 .person { display: flex; flex-direction: column; gap: 7px; }

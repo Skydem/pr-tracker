@@ -8,6 +8,7 @@ vi.mock("../src/config/env.js", () => ({
     webhookSecret: "",
     dashboard: { staleDays: 3 },
     bitbucket: { workspace: "", email: "", apiToken: "", repos: [] },
+    aiReview: { repoPath: "/srv/shiplink" },
   },
 }));
 
@@ -46,6 +47,7 @@ function prRecord(overrides: Record<string, unknown> = {}) {
     events: [
       { eventType: "PR_CREATED", actorId: people.john.id, createdAt: new Date("2026-08-20T10:00:00Z") },
     ],
+    aiReview: null,
     ...overrides,
   };
 }
@@ -59,6 +61,31 @@ describe("DashboardService", () => {
   });
 
   describe("getBoard", () => {
+    it("carries the AI review state and whether the feature is enabled", async () => {
+      vi.mocked(prisma.pullRequest.findMany).mockResolvedValue([
+        prRecord({
+          aiReview: {
+            status: "COMPLETED",
+            error: null,
+            finishedAt: new Date("2026-08-20T11:00:00Z"),
+            requestedBy: { displayName: "John Developer" },
+          },
+        }),
+        prRecord({ id: "pr-2", bitbucketId: 483 }),
+      ] as never);
+
+      const board = await service.getBoard(NOW);
+
+      expect(board.aiReviewEnabled).toBe(true);
+      expect(board.pullRequests.find((pr) => pr.id === "pr-1")!.aiReview).toEqual({
+        status: "COMPLETED",
+        requestedByName: "John Developer",
+        finishedAt: new Date("2026-08-20T11:00:00Z"),
+        error: null,
+      });
+      expect(board.pullRequests.find((pr) => pr.id === "pr-2")!.aiReview).toBeNull();
+    });
+
     it("derives reviewer and headline states from status and events", async () => {
       vi.mocked(prisma.pullRequest.findMany).mockResolvedValue([
         prRecord({

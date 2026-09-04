@@ -1,5 +1,5 @@
 import { prService, type PRWithReviewers } from "./pr.service.js";
-import { slackService } from "./slack.service.js";
+import { slackService, type AiReviewOutcome } from "./slack.service.js";
 
 export class NotificationService {
   private async isUserMuted(slackUserId: string): Promise<boolean> {
@@ -193,6 +193,22 @@ export class NotificationService {
       await slackService.sendDM(authorSlackId, blocks, text);
     } catch (error) {
       console.error(`[NotificationService] Failed to notify author on re-reviewed for PR ${pr.id}:`, error);
+    }
+  }
+
+  async notifyAuthorOnAiReviewFinished(
+    pr: PRWithReviewers,
+    outcome: AiReviewOutcome
+  ): Promise<void> {
+    try {
+      const authorSlackId = pr.author.slackUserId;
+      if (!authorSlackId || (await this.isUserMuted(authorSlackId))) return;
+
+      const { blocks, text } = slackService.buildAiReviewFinishedMessage(pr, outcome);
+
+      await slackService.sendDM(authorSlackId, blocks, text);
+    } catch (error) {
+      console.error(`[NotificationService] Failed to notify author on AI review for PR ${pr.id}:`, error);
     }
   }
 

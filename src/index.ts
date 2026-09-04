@@ -10,6 +10,7 @@ import { attachViewer } from "./auth/session.js";
 import { registerAllCommands } from "./commands/index.js";
 import { userService } from "./services/user.service.js";
 import { slackService } from "./services/slack.service.js";
+import { aiReviewService } from "./services/ai-review.service.js";
 import { prisma } from "./db/client.js";
 
 async function main() {
@@ -48,6 +49,16 @@ async function main() {
 
   await prisma.$connect();
   console.log("Database connected");
+
+  const interruptedReviews = await aiReviewService.recoverInterrupted();
+  if (interruptedReviews > 0) {
+    console.log(`AI review: marked ${interruptedReviews} interrupted review(s) as failed`);
+  }
+  console.log(
+    aiReviewService.isEnabled()
+      ? `AI review: enabled (repo ${config.aiReview.repoPath})`
+      : "AI review: disabled (set AI_REVIEW_REPO_PATH to enable)"
+  );
 
   // Start both servers
   await app.start();

@@ -1,6 +1,7 @@
-import type { EventType } from "@prisma/client";
+import type { AiReviewStatus, EventType } from "@prisma/client";
 import { prisma } from "../db/client.js";
 import { config } from "../config/env.js";
+import { aiReviewService } from "./ai-review.service.js";
 import {
   deriveReviewerState,
   derivePRState,
@@ -20,6 +21,13 @@ export interface BoardReviewer {
   manualReReviewPending: boolean;
 }
 
+export interface BoardAiReview {
+  status: AiReviewStatus;
+  requestedByName: string;
+  finishedAt: Date | null;
+  error: string | null;
+}
+
 export interface BoardPullRequest {
   id: string;
   bitbucketId: number;
@@ -36,6 +44,7 @@ export interface BoardPullRequest {
   ageMs: number;
   reviewers: BoardReviewer[];
   waitingOn: string[];
+  aiReview: BoardAiReview | null;
 }
 
 export interface PersonRef {
@@ -59,6 +68,7 @@ export interface Board {
   everyone: PersonRef[];
   counts: Record<PRHeadlineState, number>;
   staleDays: number;
+  aiReviewEnabled: boolean;
   generatedAt: Date;
 }
 
@@ -105,6 +115,14 @@ export class DashboardService {
         events: {
           select: { eventType: true, actorId: true, createdAt: true },
         },
+        aiReview: {
+          select: {
+            status: true,
+            error: true,
+            finishedAt: true,
+            requestedBy: { select: { displayName: true } },
+          },
+        },
       },
       orderBy: { updatedAt: "desc" },
     });
@@ -126,6 +144,7 @@ export class DashboardService {
       everyone: this.buildEveryone(pullRequests),
       counts: this.countByState(pullRequests),
       staleDays,
+      aiReviewEnabled: aiReviewService.isEnabled(),
       generatedAt: now,
     };
   }
@@ -245,6 +264,12 @@ export class DashboardService {
       author: { id: string; displayName: string };
       reviewers: { userId: string; status: ReviewerState | string; user: { id: string; displayName: string } }[];
       events: ReviewEvent[];
+      aiReview: {
+        status: AiReviewStatus;
+        error: string | null;
+        finishedAt: Date | null;
+        requestedBy: { displayName: string };
+      } | null;
     },
     now: Date,
     staleDays: number
@@ -284,6 +309,14 @@ export class DashboardService {
       ageMs: now.getTime() - lastActivityAt.getTime(),
       reviewers,
       waitingOn: this.waitingOn(state, reviewers, record.author.displayName),
+      aiReview: record.aiReview
+        ? {
+            status: record.aiReview.status,
+            requestedByName: record.aiReview.requestedBy.displayName,
+            finishedAt: record.aiReview.finishedAt,
+            error: record.aiReview.error,
+          }
+        : null,
     };
   }
 

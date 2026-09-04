@@ -3,6 +3,7 @@ import { Router as createRouter } from "express";
 import { dashboardService } from "../services/dashboard.service.js";
 import { prService } from "../services/pr.service.js";
 import { notificationService } from "../services/notification.service.js";
+import { aiReviewService, type AiReviewRequestFailure } from "../services/ai-review.service.js";
 import { requireViewer } from "../auth/session.js";
 import { clampLimit } from "../utils/activity.js";
 import {
@@ -136,7 +137,54 @@ export function createDashboardRouter(): Router {
     res.json({ ok: true });
   });
 
+  router.post("/pr/:prId/request-ai-review", requireViewer, async (req: Request, res: Response) => {
+    const viewer = req.viewer;
+
+    if (!viewer || viewer.userId === null) {
+      res.status(401).json({ error: "Sign in with Slack to do that" });
+      return;
+    }
+
+    const result = await aiReviewService.request(req.params.prId!, viewer.userId);
+
+    if (!result.ok) {
+      res.status(aiReviewErrorStatus(result.reason)).json({ error: aiReviewErrorMessage(result.reason) });
+      return;
+    }
+
+    res.status(202).json({ ok: true, reviewId: result.reviewId });
+  });
+
   return router;
+}
+
+function aiReviewErrorStatus(reason: AiReviewRequestFailure): number {
+  switch (reason) {
+    case "NOT_CONFIGURED":
+      return 503;
+    case "NOT_FOUND":
+      return 404;
+    case "NOT_AUTHOR":
+      return 403;
+    case "ALREADY_REVIEWED":
+    case "IN_PROGRESS":
+      return 409;
+  }
+}
+
+function aiReviewErrorMessage(reason: AiReviewRequestFailure): string {
+  switch (reason) {
+    case "NOT_CONFIGURED":
+      return "AI review is not configured on this server";
+    case "NOT_FOUND":
+      return "Pull request not found";
+    case "NOT_AUTHOR":
+      return "Only the author can request an AI review";
+    case "ALREADY_REVIEWED":
+      return "This pull request already has its AI review";
+    case "IN_PROGRESS":
+      return "An AI review is already running for this pull request";
+  }
 }
 
 function reReviewErrorStatus(reason: "NOT_FOUND" | "NOT_AUTHOR" | "NO_REVIEWERS_SELECTED"): number {

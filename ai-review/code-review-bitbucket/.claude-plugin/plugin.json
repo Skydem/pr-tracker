@@ -1,0 +1,8 @@
+{
+  "name": "code-review-bitbucket",
+  "description": "Code review for Bitbucket pull requests — high-effort multi-agent review with shiplink skills loading",
+  "author": {
+    "name": "Tomasz Torbus",
+    "email": "tomasz.torbus@shiplink.se"
+  }
+}

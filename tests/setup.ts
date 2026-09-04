@@ -40,6 +40,13 @@ vi.mock("../src/db/client.js", () => ({
       findMany: vi.fn(),
       create: vi.fn(),
     },
+    aiReview: {
+      findUnique: vi.fn(),
+      findMany: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      updateMany: vi.fn(),
+    },
     $connect: vi.fn(),
     $disconnect: vi.fn(),
   },

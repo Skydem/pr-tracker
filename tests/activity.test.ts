@@ -25,6 +25,18 @@ describe("describeActivity", () => {
       "Tomasz approved their own PR"
     );
   });
+
+  it("describes the AI review lifecycle", () => {
+    expect(describeActivity("PR_AI_REVIEW_REQUESTED", "Tomasz", "Tomasz", true)).toBe(
+      "Tomasz requested an AI review"
+    );
+    expect(describeActivity("PR_AI_REVIEW_COMPLETED", "Tomasz", "Tomasz", true)).toBe(
+      "An AI review was posted on Tomasz's PR"
+    );
+    expect(describeActivity("PR_AI_REVIEW_FAILED", "Tomasz", "Tomasz", true)).toBe(
+      "The AI review of Tomasz's PR failed"
+    );
+  });
 });
 
 describe("clampLimit", () => {

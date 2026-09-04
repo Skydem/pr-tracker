@@ -186,6 +186,23 @@ Users are automatically linked when their Bitbucket email matches their Slack em
 | `SLACK_ADMIN_USER_ID` | No | Slack user ID for admin commands (`U...`) |
 | `WEBHOOK_SECRET` | No | Secret for validating Bitbucket webhooks |
 | `PORT` | No | Server port (default: 3000) |
+| `AI_REVIEW_REPO_PATH` | No | Absolute path to a checkout of the reviewed repo; enables the dashboard's "Request AI review" button |
+| `AI_REVIEW_PLUGIN_PATH` | No | Claude Code plugin holding the review command (default: `ai-review/code-review-bitbucket` in this repo) |
+| `AI_REVIEW_COMMAND` | No | Slash command to run (default: `/code-review-bitbucket:code-review`) |
+| `AI_REVIEW_CLAUDE_BIN` | No | Claude Code binary (default: `claude`) |
+| `AI_REVIEW_BITBUCKET_MCP_COMMAND` | No | Command starting the Bitbucket MCP server (default: `npx -y @aashari/mcp-server-atlassian-bitbucket`; the Docker image uses its preinstalled `mcp-atlassian-bitbucket`) |
+| `AI_REVIEW_BITBUCKET_EMAIL` / `AI_REVIEW_BITBUCKET_API_TOKEN` | No | Credentials for the review's MCP server; the token must include `write:pullrequest` to post the comment (default: `BITBUCKET_EMAIL` / `BITBUCKET_API_TOKEN`) |
+| `AI_REVIEW_TIMEOUT_MINUTES` | No | Kill a review that runs longer than this (default: 30) |
+| `APP_UID` / `APP_GID` | No | Host uid/gid the app container runs as, so it can use the mounted `~/.claude` credentials (default: 1000) |
+
+## AI Code Review
+
+When `AI_REVIEW_REPO_PATH` is set, a developer signed in with Slack sees **Request AI review** on their own open pull requests. The tracker runs the review command shipped in `ai-review/code-review-bitbucket` (`/code-review-bitbucket:code-review`, always on Sonnet at medium effort) headless from that checkout, so the command can load the repo's skills and CLAUDE.md files; the command reads the diff through the Bitbucket MCP server and posts each finding as an inline comment on the line it concerns, or a single general comment when nothing is found. It is a code-reading review: the headless session has no shell, so it never runs tests, linters or builds.
+
+Rules:
+- Only the PR author can request it, and each PR gets one review. Only a failed run can be retried.
+- Reviews run one at a time; the dashboard shows `queued` / `running` / `AI reviewed` / `failed` on the PR row and the author gets a Slack DM when it finishes.
+- The Docker image ships the Claude Code CLI and mounts your `~/.claude` (OAuth login, settings, project memory); run `claude` once on the host to log in. Bitbucket access uses `AI_REVIEW_BITBUCKET_EMAIL` / `AI_REVIEW_BITBUCKET_API_TOKEN`, falling back to `BITBUCKET_EMAIL` / `BITBUCKET_API_TOKEN`; the token must be allowed to write pull request comments.
 
 ## Health Check
 

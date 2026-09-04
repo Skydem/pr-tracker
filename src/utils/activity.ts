@@ -37,6 +37,14 @@ export function describeActivity(
         : `${authorName} asked ${actorName} to re-review`;
     case "PR_RE_REVIEWED":
       return `${actorName} re-reviewed the PR`;
+    case "PR_AI_REVIEW_REQUESTED":
+      return actorIsAuthor
+        ? `${actorName} requested an AI review`
+        : `${actorName} requested an AI review of ${authorName}'s PR`;
+    case "PR_AI_REVIEW_COMPLETED":
+      return `An AI review was posted on ${authorName}'s PR`;
+    case "PR_AI_REVIEW_FAILED":
+      return `The AI review of ${authorName}'s PR failed`;
   }
 }
 
@@ -51,6 +59,9 @@ export const ACTIVITY_EVENT_TOKENS: Record<EventType, string> = {
   PR_DECLINED: "stop",
   PR_RE_REVIEW_REQUESTED: "rere",
   PR_RE_REVIEWED: "ok",
+  PR_AI_REVIEW_REQUESTED: "rere",
+  PR_AI_REVIEW_COMPLETED: "ok",
+  PR_AI_REVIEW_FAILED: "stop",
 };
 
 export function clampLimit(raw: unknown, fallback = 10, max = 100): number {

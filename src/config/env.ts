@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { resolve } from "node:path";
 
 function requireEnv(key: string): string {
   const value = process.env[key];
@@ -44,6 +45,21 @@ export const config = {
 
   dashboard: {
     staleDays: optionalIntEnv("DASHBOARD_STALE_DAYS", 3),
+  },
+
+  aiReview: {
+    repoPath: optionalEnv("AI_REVIEW_REPO_PATH", "").replace(/\/+$/, ""),
+    pluginPath: resolve(optionalEnv("AI_REVIEW_PLUGIN_PATH", "ai-review/code-review-bitbucket")),
+    command: optionalEnv("AI_REVIEW_COMMAND", "/code-review-bitbucket:code-review"),
+    claudeBin: optionalEnv("AI_REVIEW_CLAUDE_BIN", "claude"),
+    bitbucketMcpCommand: optionalEnv(
+      "AI_REVIEW_BITBUCKET_MCP_COMMAND",
+      "npx -y @aashari/mcp-server-atlassian-bitbucket"
+    ),
+    timeoutMinutes: optionalIntEnv("AI_REVIEW_TIMEOUT_MINUTES", 30),
+    bitbucketEmail: optionalEnv("AI_REVIEW_BITBUCKET_EMAIL", "") || optionalEnv("BITBUCKET_EMAIL", ""),
+    bitbucketApiToken:
+      optionalEnv("AI_REVIEW_BITBUCKET_API_TOKEN", "") || optionalEnv("BITBUCKET_API_TOKEN", ""),
   },
 
   bitbucket: {

@@ -98,11 +98,41 @@ function markReReviewedControl(pr: BoardPullRequest): string {
   return `<button type="button" class="rr-trigger" data-mark-re-reviewed data-pr-id="${escapeHtml(pr.id)}">I re-reviewed it</button>`;
 }
 
-function prRow(
-  pr: BoardPullRequest,
-  canRequestReReview: boolean = false,
-  viewerUserId: string | null = null
-): string {
+function aiReviewBadge(pr: BoardPullRequest): string {
+  const review = pr.aiReview;
+  if (review === null) return "";
+
+  switch (review.status) {
+    case "QUEUED":
+      return `<span class="badge badge-rere" data-ai-review-pending title="Requested by ${escapeHtml(review.requestedByName)}">AI review queued</span>`;
+    case "RUNNING":
+      return `<span class="badge badge-rere" data-ai-review-pending title="Requested by ${escapeHtml(review.requestedByName)}">AI review running</span>`;
+    case "COMPLETED":
+      return `<span class="badge badge-ok" title="Posted on the pull request${review.finishedAt ? ` at ${escapeHtml(formatTimestamp(review.finishedAt))}` : ""}">AI reviewed</span>`;
+    case "FAILED":
+      return `<span class="badge badge-stop" title="${escapeHtml(review.error ?? "The review did not finish")}">AI review failed</span>`;
+  }
+}
+
+function aiReviewControl(pr: BoardPullRequest): string {
+  const label = pr.aiReview?.status === "FAILED" ? "Retry AI review" : "Request AI review";
+  return `<button type="button" class="rr-trigger" data-ai-review data-pr-id="${escapeHtml(pr.id)}">${label}</button>`;
+}
+
+function canRequestAiReview(pr: BoardPullRequest, aiReviewEnabled: boolean): boolean {
+  return aiReviewEnabled && (pr.aiReview === null || pr.aiReview.status === "FAILED");
+}
+
+interface PrRowOptions {
+  authorControls?: boolean;
+  viewerUserId?: string | null;
+  aiReviewEnabled?: boolean;
+}
+
+function prRow(pr: BoardPullRequest, options: PrRowOptions = {}): string {
+  const authorControls = options.authorControls ?? false;
+  const viewerUserId = options.viewerUserId ?? null;
+  const aiReviewEnabled = options.aiReviewEnabled ?? false;
   const token = PR_STATE_TOKENS[pr.state];
   const titleCell = pr.url
     ? `<a href="${escapeHtml(pr.url)}" rel="noreferrer noopener" target="_blank">${escapeHtml(pr.title)}</a>`
@@ -122,7 +152,7 @@ function prRow(
 
   return `<div class="row row-${token}">
   <div class="row-main">
-    <div class="row-title"><span class="mono muted">#${pr.bitbucketId}</span><span class="title">${titleCell}</span>${pr.stale ? '<span class="badge badge-wait">Stale</span>' : ""}</div>
+    <div class="row-title"><span class="mono muted">#${pr.bitbucketId}</span><span class="title">${titleCell}</span>${pr.stale ? '<span class="badge badge-wait">Stale</span>' : ""}${aiReviewBadge(pr)}</div>
     <div class="mono small meta">${escapeHtml(pr.repositorySlug)} &nbsp;·&nbsp; ${escapeHtml(pr.sourceBranch)} → ${escapeHtml(pr.destBranch)}</div>
   </div>
   <div class="row-author"><span class="avatar avatar-plain">${escapeHtml(initials(pr.authorName))}</span><span class="small">${escapeHtml(pr.authorName)}</span></div>
@@ -130,7 +160,8 @@ function prRow(
   <div class="wait-cell">
     <span class="mono age age-${token}">${pr.state === "READY_TO_MERGE" ? "ready" : escapeHtml(formatAge(pr.ageMs))}</span>
     <span class="wait-note">${escapeHtml(waiting)}</span>
-    ${canRequestReReview && pr.reviewers.length > 0 ? requestReReviewControl(pr) : ""}
+    ${authorControls && pr.reviewers.length > 0 ? requestReReviewControl(pr) : ""}
+    ${authorControls && canRequestAiReview(pr, aiReviewEnabled) ? aiReviewControl(pr) : ""}
     ${showMarkReReviewed ? markReReviewedControl(pr) : ""}
   </div>
 </div>`;
@@ -312,12 +343,24 @@ export function renderPersonBoard(
     note: string,
     prs: BoardPullRequest[],
     fallback: string,
-    allowReReview: boolean = false,
+    authorControls: boolean = false,
     viewerUserIdForRow: string | null = null
   ): string =>
     `<section class="section">
   <div class="section-head"><span class="section-title">${escapeHtml(title)}</span><span class="mono section-count">${prs.length}</span><span class="small muted">${escapeHtml(note)}</span></div>
-  <div class="rows">${prs.length > 0 ? prs.map((pr) => prRow(pr, allowReReview, viewerUserIdForRow)).join("") : emptyState(fallback)}</div>
+  <div class="rows">${
+    prs.length > 0
+      ? prs
+          .map((pr) =>
+            prRow(pr, {
+              authorControls,
+              viewerUserId: viewerUserIdForRow,
+              aiReviewEnabled: board.aiReviewEnabled,
+            })
+          )
+          .join("")
+      : emptyState(fallback)
+  }</div>
 </section>`;
 
   const activityItems =
@@ -462,7 +505,36 @@ ${unlinkedNotice(input.viewer)}
   });
 })();
 (function () {
+  if (document.querySelector("[data-ai-review-pending]")) {
+    setTimeout(function () { window.location.reload(); }, 30000);
+  }
+
   document.addEventListener("click", function (event) {
+    var aiBtn = event.target.closest("[data-ai-review]");
+    if (aiBtn) {
+      var confirmed = window.confirm("Request an AI code review? It posts one review comment on the pull request in Bitbucket, and each pull request gets one review.");
+      if (!confirmed) return;
+      aiBtn.disabled = true;
+      aiBtn.textContent = "Requesting…";
+      fetch("/dashboard/pr/" + aiBtn.getAttribute("data-pr-id") + "/request-ai-review", {
+        method: "POST",
+      })
+        .then(function (response) {
+          if (response.ok) {
+            window.location.reload();
+            return;
+          }
+          return response.json().catch(function () { return {}; }).then(function (body) {
+            throw new Error(body.error || "request failed");
+          });
+        })
+        .catch(function (error) {
+          aiBtn.disabled = false;
+          aiBtn.textContent = error.message || "Could not request. Try again.";
+        });
+      return;
+    }
+
     var markBtn = event.target.closest("[data-mark-re-reviewed]");
     if (markBtn) {
       markBtn.disabled = true;
