@@ -85,14 +85,18 @@ Each finding is one inline comment on the line it concerns (`inline.path` + `to`
 **Missing error handling for OAuth callback**
 
 The callback swallows the exception from `exchangeCode()`, so a revoked grant leaves the user on a blank page. CLAUDE.md says "Always handle OAuth errors".
+
+_Created with Claude Code_
 ```
 
-No footer or reaction request is appended. Only when nothing survives verification does the review post a single general comment:
+Every comment ends with the `_Created with Claude Code_` attribution line and nothing else (no reaction request). Only when nothing survives verification does the review post a single general comment:
 
 ```markdown
 ### Code review
 
 No issues found. Checked for bugs and CLAUDE.md compliance.
+
+_Created with Claude Code_
 ```
 
 ## False positives skipped

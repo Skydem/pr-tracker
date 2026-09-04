@@ -41,6 +41,7 @@ function prRecord(overrides: Record<string, unknown> = {}) {
     repositorySlug: "backend-api",
     sourceBranch: "feat/rate-limit",
     destBranch: "main",
+    createdAt: new Date("2026-08-20T10:00:00Z"),
     updatedAt: new Date("2026-08-20T10:00:00Z"),
     author: people.john,
     reviewers: [reviewer(people.sarah, "PENDING")],
@@ -169,6 +170,7 @@ describe("DashboardService", () => {
     it("marks a waiting PR stale once activity passes the threshold", async () => {
       vi.mocked(prisma.pullRequest.findMany).mockResolvedValue([
         prRecord({
+          createdAt: new Date("2026-08-14T12:00:00Z"),
           events: [
             { eventType: "PR_CREATED", actorId: people.john.id, createdAt: new Date("2026-08-14T12:00:00Z") },
           ],
@@ -181,6 +183,28 @@ describe("DashboardService", () => {
       expect(board.pullRequests[0]!.ageMs).toBe(6 * 86400000);
     });
 
+    it("counts a first review as waiting since PR creation, not since another reviewer's approval", async () => {
+      vi.mocked(prisma.pullRequest.findMany).mockResolvedValue([
+        prRecord({
+          createdAt: new Date("2026-08-16T12:00:00Z"),
+          reviewers: [
+            reviewer(people.mike, "APPROVED"),
+            reviewer(people.emma, "PENDING"),
+          ],
+          events: [
+            { eventType: "PR_CREATED", actorId: people.john.id, createdAt: new Date("2026-08-16T12:00:00Z") },
+            { eventType: "PR_APPROVED", actorId: people.mike.id, createdAt: new Date("2026-08-18T12:00:00Z") },
+          ],
+        }),
+      ] as never);
+
+      const board = await service.getBoard(NOW);
+      const pr = board.pullRequests[0]!;
+
+      expect(pr.state).toBe("AWAITING_FIRST_REVIEW");
+      expect(pr.ageMs).toBe(4 * 86400000);
+    });
+
     it("sorts the most urgent state first and oldest first within a state", async () => {
       vi.mocked(prisma.pullRequest.findMany).mockResolvedValue([
         prRecord({
@@ -191,6 +215,7 @@ describe("DashboardService", () => {
         prRecord({
           id: "pr-waiting-new",
           bitbucketId: 486,
+          createdAt: new Date("2026-08-20T08:00:00Z"),
           events: [{ eventType: "PR_CREATED", actorId: people.john.id, createdAt: new Date("2026-08-20T08:00:00Z") }],
         }),
         prRecord({
@@ -201,6 +226,7 @@ describe("DashboardService", () => {
         prRecord({
           id: "pr-waiting-old",
           bitbucketId: 468,
+          createdAt: new Date("2026-08-14T10:00:00Z"),
           events: [{ eventType: "PR_CREATED", actorId: people.john.id, createdAt: new Date("2026-08-14T10:00:00Z") }],
         }),
       ] as never);

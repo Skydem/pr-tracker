@@ -104,6 +104,8 @@ Each inline comment must be brief, avoid emojis, and state the bug plus the conc
 
 <two to four sentences: what is wrong, and the concrete input/state that makes it fail. If a CLAUDE.md or memory rule is broken, quote it: CLAUDE.md says "<...>". If it depends on another file, name the file and the code>
 
+_Created with Claude Code_
+
 ---
 
 Only when **no findings** survive verification, post a single general (non-inline) comment:
@@ -114,9 +116,11 @@ Only when **no findings** survive verification, post a single general (non-inlin
 
 No issues found. Checked for bugs and CLAUDE.md compliance.
 
+_Created with Claude Code_
+
 ---
 
-Do not append any footer, signature, or reaction request to any comment.
+Every comment — each inline finding and the no-issues comment — ends with the line `_Created with Claude Code_`, so readers can tell it was not written by the requesting developer. Do not add anything else after it: no emoji, no reaction request.
 
 ## False positives to skip
 

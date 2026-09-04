@@ -47,21 +47,68 @@ export function deriveReviewerState(
   userId: string,
   events: ReviewEvent[]
 ): ReviewerState {
+  return resolveReviewerVerdict(new Date(0), status, userId, events).state;
+}
+
+/**
+ * When this reviewer's current state actually began — not the last time
+ * anything happened on the PR. A reviewer who never reviewed has been
+ * waiting since the PR was opened, even if someone else reviewed since;
+ * a reviewer awaiting re-review has been waiting since the push (or manual
+ * re-review request) that invalidated their verdict, not since their
+ * original verdict.
+ */
+export function deriveReviewerStateSince(
+  prCreatedAt: Date,
+  status: ReviewStatus,
+  userId: string,
+  events: ReviewEvent[]
+): Date {
+  return resolveReviewerVerdict(prCreatedAt, status, userId, events).since;
+}
+
+function resolveReviewerVerdict(
+  prCreatedAt: Date,
+  status: ReviewStatus,
+  userId: string,
+  events: ReviewEvent[]
+): { state: ReviewerState; since: Date } {
   const lastVerdict = lastVerdictBy(userId, events);
 
   if (lastVerdict === null) {
-    if (status === "CHANGES_REQUESTED") return "CHANGES_REQUESTED";
-    if (status === "APPROVED") return "APPROVED";
-    return "AWAITING_FIRST_REVIEW";
+    if (status === "CHANGES_REQUESTED") return { state: "CHANGES_REQUESTED", since: prCreatedAt };
+    if (status === "APPROVED") return { state: "APPROVED", since: prCreatedAt };
+    return { state: "AWAITING_FIRST_REVIEW", since: prCreatedAt };
   }
 
-  if (status === "PENDING") return "AWAITING_RE_REVIEW";
-  if (lastVerdict.eventType === "PR_APPROVED") return "APPROVED";
+  if (status === "PENDING") {
+    const since =
+      earliestReReviewTriggerAfter(userId, lastVerdict.createdAt, events) ?? lastVerdict.createdAt;
+    return { state: "AWAITING_RE_REVIEW", since };
+  }
 
-  const lastPushAt = lastPushTime(events);
-  return lastPushAt !== null && lastPushAt > lastVerdict.createdAt
-    ? "AWAITING_RE_REVIEW"
-    : "CHANGES_REQUESTED";
+  if (lastVerdict.eventType === "PR_APPROVED") {
+    return { state: "APPROVED", since: lastVerdict.createdAt };
+  }
+
+  const pushSince = earliestReReviewTriggerAfter(userId, lastVerdict.createdAt, events);
+  if (pushSince !== null) return { state: "AWAITING_RE_REVIEW", since: pushSince };
+
+  return { state: "CHANGES_REQUESTED", since: lastVerdict.createdAt };
+}
+
+function earliestReReviewTriggerAfter(
+  userId: string,
+  after: Date,
+  events: ReviewEvent[]
+): Date | null {
+  return events.reduce<Date | null>((earliest, event) => {
+    const isPush = event.eventType === "PR_COMMITS_PUSHED";
+    const isManualRequest =
+      event.eventType === "PR_RE_REVIEW_REQUESTED" && event.actorId === userId;
+    if ((!isPush && !isManualRequest) || event.createdAt <= after) return earliest;
+    return earliest === null || event.createdAt < earliest ? event.createdAt : earliest;
+  }, null);
 }
 
 function lastVerdictBy(userId: string, events: ReviewEvent[]): ReviewEvent | null {

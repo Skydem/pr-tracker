@@ -83,7 +83,7 @@ The stored `PRReviewer.status` is only a fallback for reviewers with no logged v
 
 PR headline state (`derivePRState`) is the worst reviewer state, in priority order `BLOCKED` > `AWAITING_RE_REVIEW` > `AWAITING_FIRST_REVIEW` > `READY_TO_MERGE`, or `NO_REVIEWERS` when there are none. That order also drives board sorting, with older PRs first within a state.
 
-Staleness is measured from the last PR event (falling back to `updatedAt`), thresholded by `DASHBOARD_STALE_DAYS` (default 3); `READY_TO_MERGE` PRs are never marked stale.
+Staleness is measured from when the PR's headline state actually began, not from the last activity by anyone on the PR — a reviewer who hasn't reviewed yet has been waiting since the PR was opened even if someone else approved since, and a `BLOCKED` PR has been waiting on the author since the oldest outstanding `CHANGES_REQUESTED` verdict, not since a later approval from a different reviewer. `deriveReviewerStateSince` (`review-state.ts`) derives each reviewer's own wait-start the same way `deriveReviewerState` derives their state (PR creation for a first review, the push or manual re-review request that invalidated a verdict for a re-review, the verdict itself for changes requested); `DashboardService.stateSince` then takes the earliest such timestamp among the reviewers driving the headline state. Thresholded by `DASHBOARD_STALE_DAYS` (default 3); `READY_TO_MERGE` PRs are never marked stale.
 
 ### Dashboard Sign-In
 

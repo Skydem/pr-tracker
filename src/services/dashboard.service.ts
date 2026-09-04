@@ -4,6 +4,7 @@ import { config } from "../config/env.js";
 import { aiReviewService } from "./ai-review.service.js";
 import {
   deriveReviewerState,
+  deriveReviewerStateSince,
   derivePRState,
   comparePRState,
   isAwaitingAction,
@@ -260,6 +261,7 @@ export class DashboardService {
       repositorySlug: string;
       sourceBranch: string;
       destBranch: string;
+      createdAt: Date;
       updatedAt: Date;
       author: { id: string; displayName: string };
       reviewers: { userId: string; status: ReviewerState | string; user: { id: string; displayName: string } }[];
@@ -274,9 +276,12 @@ export class DashboardService {
     now: Date,
     staleDays: number
   ): BoardPullRequest {
-    const reviewers: BoardReviewer[] = record.reviewers.map((reviewer) => {
-      const state = deriveReviewerState(
-        reviewer.status as "PENDING" | "APPROVED" | "CHANGES_REQUESTED",
+    const reviewersWithSince = record.reviewers.map((reviewer) => {
+      const status = reviewer.status as "PENDING" | "APPROVED" | "CHANGES_REQUESTED";
+      const state = deriveReviewerState(status, reviewer.user.id, record.events);
+      const since = deriveReviewerStateSince(
+        record.createdAt,
+        status,
         reviewer.user.id,
         record.events
       );
@@ -285,12 +290,17 @@ export class DashboardService {
         userId: reviewer.user.id,
         displayName: reviewer.user.displayName,
         state,
+        since,
         manualReReviewPending: reviewer.status === "PENDING" && state === "AWAITING_RE_REVIEW",
       };
     });
 
+    const reviewers: BoardReviewer[] = reviewersWithSince.map(
+      ({ since: _since, ...reviewer }) => reviewer
+    );
+
     const state = derivePRState(reviewers.map((reviewer) => reviewer.state));
-    const lastActivityAt = this.lastActivityAt(record.events, record.updatedAt);
+    const stateSince = this.stateSince(state, reviewersWithSince, record.createdAt);
 
     return {
       id: record.id,
@@ -305,8 +315,8 @@ export class DashboardService {
       authorName: record.author.displayName,
       state,
       stale:
-        state !== "READY_TO_MERGE" && isStale(lastActivityAt, now, staleDays),
-      ageMs: now.getTime() - lastActivityAt.getTime(),
+        state !== "READY_TO_MERGE" && isStale(stateSince, now, staleDays),
+      ageMs: now.getTime() - stateSince.getTime(),
       reviewers,
       waitingOn: this.waitingOn(state, reviewers, record.author.displayName),
       aiReview: record.aiReview
@@ -320,10 +330,43 @@ export class DashboardService {
     };
   }
 
-  private lastActivityAt(events: ReviewEvent[], fallback: Date): Date {
-    return events.reduce<Date>(
-      (latest, event) => (event.createdAt > latest ? event.createdAt : latest),
-      events.length > 0 ? events[0]!.createdAt : fallback
+  /**
+   * When the PR's headline state actually began, driven by whichever
+   * reviewer(s) put it in that state — not by unrelated activity from a
+   * reviewer who isn't the reason the PR is in this state. When several
+   * reviewers share the driving state, use the earliest of them: that's
+   * the longest anyone has genuinely been waiting.
+   */
+  private stateSince(
+    state: PRHeadlineState,
+    reviewers: { state: ReviewerState; since: Date }[],
+    prCreatedAt: Date
+  ): Date {
+    const drivingState: ReviewerState | null =
+      state === "BLOCKED"
+        ? "CHANGES_REQUESTED"
+        : state === "AWAITING_RE_REVIEW"
+          ? "AWAITING_RE_REVIEW"
+          : state === "AWAITING_FIRST_REVIEW"
+            ? "AWAITING_FIRST_REVIEW"
+            : null;
+
+    if (drivingState === null) {
+      if (state === "READY_TO_MERGE") {
+        return reviewers.reduce<Date>(
+          (latest, reviewer) => (reviewer.since > latest ? reviewer.since : latest),
+          prCreatedAt
+        );
+      }
+      return prCreatedAt;
+    }
+
+    const driving = reviewers.filter((reviewer) => reviewer.state === drivingState);
+    if (driving.length === 0) return prCreatedAt;
+
+    return driving.reduce<Date>(
+      (earliest, reviewer) => (reviewer.since < earliest ? reviewer.since : earliest),
+      driving[0]!.since
     );
   }
 
