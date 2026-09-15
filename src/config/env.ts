@@ -49,6 +49,7 @@ export const config = {
 
   aiReview: {
     repoPath: optionalEnv("AI_REVIEW_REPO_PATH", "").replace(/\/+$/, ""),
+    repositorySlug: optionalEnv("AI_REVIEW_REPOSITORY_SLUG", ""),
     pluginPath: resolve(optionalEnv("AI_REVIEW_PLUGIN_PATH", "ai-review/code-review-bitbucket")),
     command: optionalEnv("AI_REVIEW_COMMAND", "/code-review-bitbucket:code-review"),
     claudeBin: optionalEnv("AI_REVIEW_CLAUDE_BIN", "claude"),

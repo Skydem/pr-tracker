@@ -32,6 +32,13 @@ export class AiReviewService {
     return config.aiReview.repoPath !== "";
   }
 
+  isEnabledFor(repositorySlug: string): boolean {
+    return (
+      this.isEnabled() &&
+      repositorySlug.toLowerCase() === config.aiReview.repositorySlug.toLowerCase()
+    );
+  }
+
   async request(pullRequestId: string, requesterId: string): Promise<RequestAiReviewResult> {
     if (!this.isEnabled()) return { ok: false, reason: "NOT_CONFIGURED" };
 
@@ -41,6 +48,7 @@ export class AiReviewService {
     });
 
     if (!pr || pr.state !== "OPEN") return { ok: false, reason: "NOT_FOUND" };
+    if (!this.isEnabledFor(pr.repositorySlug)) return { ok: false, reason: "NOT_CONFIGURED" };
     if (pr.authorId !== requesterId) return { ok: false, reason: "NOT_AUTHOR" };
 
     const existing = pr.aiReview;

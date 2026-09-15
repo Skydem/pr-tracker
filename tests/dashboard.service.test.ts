@@ -8,7 +8,7 @@ vi.mock("../src/config/env.js", () => ({
     webhookSecret: "",
     dashboard: { staleDays: 3 },
     bitbucket: { workspace: "", email: "", apiToken: "", repos: [] },
-    aiReview: { repoPath: "/srv/shiplink" },
+    aiReview: { repoPath: "/srv/shiplink", repositorySlug: "backend-api" },
   },
 }));
 
@@ -62,7 +62,7 @@ describe("DashboardService", () => {
   });
 
   describe("getBoard", () => {
-    it("carries the AI review state and whether the feature is enabled", async () => {
+    it("carries the AI review state and whether the feature is enabled for the PR's repo", async () => {
       vi.mocked(prisma.pullRequest.findMany).mockResolvedValue([
         prRecord({
           aiReview: {
@@ -73,11 +73,11 @@ describe("DashboardService", () => {
           },
         }),
         prRecord({ id: "pr-2", bitbucketId: 483 }),
+        prRecord({ id: "pr-3", bitbucketId: 484, repositorySlug: "other-repo" }),
       ] as never);
 
       const board = await service.getBoard(NOW);
 
-      expect(board.aiReviewEnabled).toBe(true);
       expect(board.pullRequests.find((pr) => pr.id === "pr-1")!.aiReview).toEqual({
         status: "COMPLETED",
         requestedByName: "John Developer",
@@ -85,6 +85,8 @@ describe("DashboardService", () => {
         error: null,
       });
       expect(board.pullRequests.find((pr) => pr.id === "pr-2")!.aiReview).toBeNull();
+      expect(board.pullRequests.find((pr) => pr.id === "pr-1")!.aiReviewEligible).toBe(true);
+      expect(board.pullRequests.find((pr) => pr.id === "pr-3")!.aiReviewEligible).toBe(false);
     });
 
     it("derives reviewer and headline states from status and events", async () => {

@@ -4,6 +4,7 @@ vi.mock("../src/config/env.js", () => ({
   config: {
     aiReview: {
       repoPath: "/srv/shiplink",
+      repositorySlug: "backend",
       pluginPath: "",
       command: "/code-review-bitbucket:code-review",
       claudeBin: "claude",
@@ -73,6 +74,28 @@ describe("AiReviewService.request", () => {
 
     expect(await service.request("pr-1", author)).toEqual({ ok: false, reason: "NOT_CONFIGURED" });
     expect(prisma.pullRequest.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("refuses pull requests from a repo the feature isn't scoped to", async () => {
+    const service = new AiReviewService(runnerReturning({ ok: true, summary: "", costUsd: null, turns: null, sessionId: null }));
+    vi.mocked(prisma.pullRequest.findUnique).mockResolvedValue({
+      ...openPR,
+      repositorySlug: "shiplink-backend",
+    } as never);
+
+    expect(await service.request("pr-1", author)).toEqual({ ok: false, reason: "NOT_CONFIGURED" });
+    expect(prisma.aiReview.create).not.toHaveBeenCalled();
+  });
+
+  it("matches the configured repo slug case-insensitively", async () => {
+    const service = new AiReviewService(runnerReturning({ ok: true, summary: "", costUsd: null, turns: null, sessionId: null }));
+    vi.mocked(prisma.pullRequest.findUnique).mockResolvedValue({
+      ...openPR,
+      repositorySlug: "Backend",
+    } as never);
+    vi.mocked(prisma.aiReview.create).mockResolvedValue({ id: "rev-1" } as never);
+
+    expect(await service.request("pr-1", author)).toEqual({ ok: true, reviewId: "rev-1" });
   });
 
   it("refuses unknown and closed pull requests", async () => {

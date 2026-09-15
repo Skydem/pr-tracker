@@ -46,6 +46,7 @@ export interface BoardPullRequest {
   reviewers: BoardReviewer[];
   waitingOn: string[];
   aiReview: BoardAiReview | null;
+  aiReviewEligible: boolean;
 }
 
 export interface PersonRef {
@@ -69,7 +70,6 @@ export interface Board {
   everyone: PersonRef[];
   counts: Record<PRHeadlineState, number>;
   staleDays: number;
-  aiReviewEnabled: boolean;
   generatedAt: Date;
 }
 
@@ -145,7 +145,6 @@ export class DashboardService {
       everyone: this.buildEveryone(pullRequests),
       counts: this.countByState(pullRequests),
       staleDays,
-      aiReviewEnabled: aiReviewService.isEnabled(),
       generatedAt: now,
     };
   }
@@ -327,6 +326,7 @@ export class DashboardService {
             error: record.aiReview.error,
           }
         : null,
+      aiReviewEligible: aiReviewService.isEnabledFor(record.repositorySlug),
     };
   }
 

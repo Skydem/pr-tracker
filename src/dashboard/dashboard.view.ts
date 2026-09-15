@@ -119,20 +119,18 @@ function aiReviewControl(pr: BoardPullRequest): string {
   return `<button type="button" class="rr-trigger" data-ai-review data-pr-id="${escapeHtml(pr.id)}">${label}</button>`;
 }
 
-function canRequestAiReview(pr: BoardPullRequest, aiReviewEnabled: boolean): boolean {
-  return aiReviewEnabled && (pr.aiReview === null || pr.aiReview.status === "FAILED");
+function canRequestAiReview(pr: BoardPullRequest): boolean {
+  return pr.aiReviewEligible && (pr.aiReview === null || pr.aiReview.status === "FAILED");
 }
 
 interface PrRowOptions {
   authorControls?: boolean;
   viewerUserId?: string | null;
-  aiReviewEnabled?: boolean;
 }
 
 function prRow(pr: BoardPullRequest, options: PrRowOptions = {}): string {
   const authorControls = options.authorControls ?? false;
   const viewerUserId = options.viewerUserId ?? null;
-  const aiReviewEnabled = options.aiReviewEnabled ?? false;
   const token = PR_STATE_TOKENS[pr.state];
   const titleCell = pr.url
     ? `<a href="${escapeHtml(pr.url)}" rel="noreferrer noopener" target="_blank">${escapeHtml(pr.title)}</a>`
@@ -161,7 +159,7 @@ function prRow(pr: BoardPullRequest, options: PrRowOptions = {}): string {
     <span class="mono age age-${token}">${pr.state === "READY_TO_MERGE" ? "ready" : escapeHtml(formatAge(pr.ageMs))}</span>
     <span class="wait-note">${escapeHtml(waiting)}</span>
     ${authorControls && pr.reviewers.length > 0 ? requestReReviewControl(pr) : ""}
-    ${authorControls && canRequestAiReview(pr, aiReviewEnabled) ? aiReviewControl(pr) : ""}
+    ${authorControls && canRequestAiReview(pr) ? aiReviewControl(pr) : ""}
     ${showMarkReReviewed ? markReReviewedControl(pr) : ""}
   </div>
 </div>`;
@@ -355,7 +353,6 @@ export function renderPersonBoard(
             prRow(pr, {
               authorControls,
               viewerUserId: viewerUserIdForRow,
-              aiReviewEnabled: board.aiReviewEnabled,
             })
           )
           .join("")
