@@ -1,5 +1,6 @@
 import { prService, type PRWithReviewers } from "./pr.service.js";
 import { slackService, type AiReviewOutcome } from "./slack.service.js";
+import type { HurryTarget } from "./dashboard.service.js";
 
 export class NotificationService {
   private async isUserMuted(slackUserId: string): Promise<boolean> {
@@ -193,6 +194,33 @@ export class NotificationService {
       await slackService.sendDM(authorSlackId, blocks, text);
     } catch (error) {
       console.error(`[NotificationService] Failed to notify author on re-reviewed for PR ${pr.id}:`, error);
+    }
+  }
+
+  async notifyOnHurry(
+    pr: PRWithReviewers,
+    target: HurryTarget,
+    targetIds: string[],
+    hurrierName: string,
+    hurryCount: number
+  ): Promise<void> {
+    try {
+      const slackIds =
+        target === "AUTHOR"
+          ? [pr.author.slackUserId]
+          : pr.reviewers
+              .filter((reviewer) => targetIds.includes(reviewer.userId))
+              .map((reviewer) => reviewer.user.slackUserId);
+
+      const { blocks, text } = slackService.buildHurryMessage(pr, target, hurrierName, hurryCount);
+
+      for (const slackId of slackIds) {
+        if (slackId && !(await this.isUserMuted(slackId))) {
+          await slackService.sendDM(slackId, blocks, text);
+        }
+      }
+    } catch (error) {
+      console.error(`[NotificationService] Failed to notify on hurry for PR ${pr.id}:`, error);
     }
   }
 

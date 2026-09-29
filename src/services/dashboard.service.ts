@@ -1,4 +1,4 @@
-import type { AiReviewStatus, EventType } from "@prisma/client";
+import type { AiReviewStatus, EventType, Prisma } from "@prisma/client";
 import { prisma } from "../db/client.js";
 import { config } from "../config/env.js";
 import { aiReviewService } from "./ai-review.service.js";
@@ -29,6 +29,18 @@ export interface BoardAiReview {
   error: string | null;
 }
 
+export type HurryTarget = "AUTHOR" | "REVIEWERS";
+
+export interface BoardHurry {
+  count: number;
+  eligible: boolean;
+  target: HurryTarget | null;
+  targetIds: string[];
+  coolingDownUserIds: string[];
+}
+
+const HURRY_EVENT_TYPES: EventType[] = ["PR_HURRIED", "PR_REVIEWERS_HURRIED"];
+
 export interface BoardPullRequest {
   id: string;
   bitbucketId: number;
@@ -47,6 +59,7 @@ export interface BoardPullRequest {
   waitingOn: string[];
   aiReview: BoardAiReview | null;
   aiReviewEligible: boolean;
+  hurry: BoardHurry;
 }
 
 export interface PersonRef {
@@ -104,27 +117,32 @@ export interface ActivityFeed {
   limit: number;
 }
 
+const BOARD_PR_INCLUDE = {
+  author: { select: { id: true, displayName: true } },
+  reviewers: {
+    include: { user: { select: { id: true, displayName: true } } },
+  },
+  events: {
+    select: { eventType: true, actorId: true, createdAt: true },
+  },
+  aiReview: {
+    select: {
+      status: true,
+      error: true,
+      finishedAt: true,
+      requestedBy: { select: { displayName: true } },
+    },
+  },
+} satisfies Prisma.PullRequestInclude;
+
+const MINUTE_MS = 60 * 1000;
+const HOUR_MS = 60 * MINUTE_MS;
+
 export class DashboardService {
   async getBoard(now: Date = new Date()): Promise<Board> {
     const records = await prisma.pullRequest.findMany({
       where: { state: "OPEN" },
-      include: {
-        author: { select: { id: true, displayName: true } },
-        reviewers: {
-          include: { user: { select: { id: true, displayName: true } } },
-        },
-        events: {
-          select: { eventType: true, actorId: true, createdAt: true },
-        },
-        aiReview: {
-          select: {
-            status: true,
-            error: true,
-            finishedAt: true,
-            requestedBy: { select: { displayName: true } },
-          },
-        },
-      },
+      include: BOARD_PR_INCLUDE,
       orderBy: { updatedAt: "desc" },
     });
 
@@ -147,6 +165,17 @@ export class DashboardService {
       staleDays,
       generatedAt: now,
     };
+  }
+
+  async getPullRequest(pullRequestId: string, now: Date = new Date()): Promise<BoardPullRequest | null> {
+    const record = await prisma.pullRequest.findUnique({
+      where: { id: pullRequestId },
+      include: BOARD_PR_INCLUDE,
+    });
+
+    if (!record || record.state !== "OPEN") return null;
+
+    return this.buildPullRequest(record, now, config.dashboard.staleDays);
   }
 
   async getPersonRef(userId: string): Promise<PersonRef | null> {
@@ -327,7 +356,50 @@ export class DashboardService {
           }
         : null,
       aiReviewEligible: aiReviewService.isEnabledFor(record.repositorySlug),
+      hurry: this.hurry(state, stateSince, record.author.id, reviewers, record.events, now),
     };
+  }
+
+  private hurry(
+    state: PRHeadlineState,
+    stateSince: Date,
+    authorId: string,
+    reviewers: BoardReviewer[],
+    events: ReviewEvent[],
+    now: Date
+  ): BoardHurry {
+    const target = this.hurryTarget(state);
+    if (target === null) {
+      return { count: 0, eligible: false, target: null, targetIds: [], coolingDownUserIds: [] };
+    }
+
+    const hurries = events.filter(
+      (event) => HURRY_EVENT_TYPES.includes(event.eventType) && event.createdAt >= stateSince
+    );
+    const cooldownStart = now.getTime() - config.dashboard.hurryCooldownMinutes * MINUTE_MS;
+
+    return {
+      count: hurries.length,
+      eligible: now.getTime() - stateSince.getTime() >= config.dashboard.hurryAfterHours * HOUR_MS,
+      target,
+      targetIds:
+        target === "AUTHOR"
+          ? [authorId]
+          : reviewers.filter((reviewer) => isAwaitingAction(reviewer.state)).map((reviewer) => reviewer.userId),
+      coolingDownUserIds: [
+        ...new Set(
+          hurries
+            .filter((event) => event.createdAt.getTime() > cooldownStart)
+            .map((event) => event.actorId)
+        ),
+      ],
+    };
+  }
+
+  private hurryTarget(state: PRHeadlineState): HurryTarget | null {
+    if (state === "BLOCKED") return "AUTHOR";
+    if (state === "AWAITING_FIRST_REVIEW" || state === "AWAITING_RE_REVIEW") return "REVIEWERS";
+    return null;
   }
 
   /**

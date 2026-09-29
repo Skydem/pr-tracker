@@ -26,6 +26,21 @@ describe("describeActivity", () => {
     );
   });
 
+  it("names who hurried whom", () => {
+    expect(describeActivity("PR_HURRIED", "Marek", "Tomasz", false)).toBe(
+      "Marek hurried Tomasz to address the requested changes"
+    );
+  });
+
+  it("describes a reviewer hurry from the author and from someone else", () => {
+    expect(describeActivity("PR_REVIEWERS_HURRIED", "Tomasz", "Tomasz", true)).toBe(
+      "Tomasz hurried the reviewers on their PR"
+    );
+    expect(describeActivity("PR_REVIEWERS_HURRIED", "Marek", "Tomasz", false)).toBe(
+      "Marek hurried the reviewers on Tomasz's PR"
+    );
+  });
+
   it("describes the AI review lifecycle", () => {
     expect(describeActivity("PR_AI_REVIEW_REQUESTED", "Tomasz", "Tomasz", true)).toBe(
       "Tomasz requested an AI review"

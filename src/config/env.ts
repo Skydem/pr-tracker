@@ -45,6 +45,8 @@ export const config = {
 
   dashboard: {
     staleDays: optionalIntEnv("DASHBOARD_STALE_DAYS", 3),
+    hurryAfterHours: optionalIntEnv("DASHBOARD_HURRY_AFTER_HOURS", 24),
+    hurryCooldownMinutes: optionalIntEnv("DASHBOARD_HURRY_COOLDOWN_MINUTES", 60),
   },
 
   aiReview: {

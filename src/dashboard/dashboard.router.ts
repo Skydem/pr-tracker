@@ -4,6 +4,7 @@ import { dashboardService } from "../services/dashboard.service.js";
 import { prService } from "../services/pr.service.js";
 import { notificationService } from "../services/notification.service.js";
 import { aiReviewService, type AiReviewRequestFailure } from "../services/ai-review.service.js";
+import { hurryService, type HurryFailure } from "../services/hurry.service.js";
 import { requireViewer } from "../auth/session.js";
 import { clampLimit } from "../utils/activity.js";
 import {
@@ -155,7 +156,62 @@ export function createDashboardRouter(): Router {
     res.status(202).json({ ok: true, reviewId: result.reviewId });
   });
 
+  router.post("/pr/:prId/hurry", requireViewer, async (req: Request, res: Response) => {
+    const viewer = req.viewer;
+
+    if (!viewer || viewer.userId === null) {
+      res.status(401).json({ error: "Sign in with Slack to do that" });
+      return;
+    }
+
+    const result = await hurryService.hurry(req.params.prId!, viewer.userId);
+
+    if (!result.ok) {
+      res.status(hurryErrorStatus(result.reason)).json({ error: hurryErrorMessage(result.reason) });
+      return;
+    }
+
+    const updatedPR = await prService.getPRWithReviewers(req.params.prId!).catch(() => null);
+    if (updatedPR) {
+      await notificationService.notifyOnHurry(
+        updatedPR,
+        result.target,
+        result.targetIds,
+        viewer.displayName,
+        result.count
+      );
+    }
+
+    res.json({ ok: true, count: result.count });
+  });
+
   return router;
+}
+
+function hurryErrorStatus(reason: HurryFailure): number {
+  switch (reason) {
+    case "NOT_FOUND":
+      return 404;
+    case "IS_TARGET":
+      return 403;
+    case "NOT_HURRYABLE":
+      return 409;
+    case "COOLING_DOWN":
+      return 429;
+  }
+}
+
+function hurryErrorMessage(reason: HurryFailure): string {
+  switch (reason) {
+    case "NOT_FOUND":
+      return "Pull request not found";
+    case "IS_TARGET":
+      return "You cannot hurry yourself";
+    case "NOT_HURRYABLE":
+      return "This pull request has not been waiting long enough to hurry";
+    case "COOLING_DOWN":
+      return "You already hurried this one recently";
+  }
 }
 
 function aiReviewErrorStatus(reason: AiReviewRequestFailure): number {

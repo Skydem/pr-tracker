@@ -1,6 +1,7 @@
 import type { App } from "@slack/bolt";
 import type { KnownBlock } from "@slack/types";
 import type { PRWithReviewers } from "./pr.service.js";
+import type { HurryTarget } from "./dashboard.service.js";
 
 export type AiReviewOutcome = { ok: true } | { ok: false; error: string };
 
@@ -286,6 +287,49 @@ export class SlackService {
           {
             type: "mrkdwn",
             text: `${reviewerName} took another look • ${pr.workspaceSlug}/${pr.repositorySlug}`,
+          },
+        ],
+      },
+    ] as const;
+
+    return { blocks: blocks as unknown as KnownBlock[], text };
+  }
+
+  buildHurryMessage(
+    pr: PRWithReviewers,
+    target: HurryTarget,
+    hurrierName: string,
+    hurryCount: number
+  ): { blocks: KnownBlock[]; text: string } {
+    const sirens = ":rotating_light:".repeat(Math.min(hurryCount, 5));
+    const text =
+      target === "AUTHOR"
+        ? `${hurrierName} is hurrying you on "${pr.title}"`
+        : `${hurrierName} is hurrying you to review "${pr.title}"`;
+    const heading = target === "AUTHOR" ? "Hurry up!" : "Review it already!";
+    const waitingFor =
+      target === "AUTHOR"
+        ? `${hurrierName} is still waiting on the changes that were requested`
+        : `${hurrierName} is still waiting for your review`;
+    const since = target === "AUTHOR" ? "since changes were requested" : "while waiting for review";
+    const tally =
+      hurryCount === 1
+        ? "First hurry on this one. The card on the board just got bigger."
+        : `Hurried ${hurryCount} times ${since}. The card on the board keeps growing.`;
+    const blocks = [
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `*${heading}* ${sirens}\n<${pr.url}|${pr.title}>`,
+        },
+      },
+      {
+        type: "context",
+        elements: [
+          {
+            type: "mrkdwn",
+            text: `${waitingFor} • ${tally} • ${pr.workspaceSlug}/${pr.repositorySlug}`,
           },
         ],
       },

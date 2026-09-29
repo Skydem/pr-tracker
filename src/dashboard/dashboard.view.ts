@@ -18,6 +18,7 @@ import type {
 } from "../services/dashboard.service.js";
 import type { Viewer } from "../auth/viewer.js";
 import { DASHBOARD_STYLES } from "./dashboard.styles.js";
+import { HURRY_GAME_SCRIPT, HURRY_GAME_STYLES } from "./hurry-game.js";
 
 const STATE_TOKENS: Record<ReviewerState, string> = {
   AWAITING_FIRST_REVIEW: "wait",
@@ -123,9 +124,38 @@ function canRequestAiReview(pr: BoardPullRequest): boolean {
   return pr.aiReviewEligible && (pr.aiReview === null || pr.aiReview.status === "FAILED");
 }
 
+const MAX_HURRY_LEVEL = 6;
+
+function hurryBadge(pr: BoardPullRequest): string {
+  return pr.hurry.count > 0
+    ? `<span class="badge badge-hurry" title="Hurried ${pr.hurry.count} time${pr.hurry.count === 1 ? "" : "s"} ${pr.hurry.target === "AUTHOR" ? "since changes were requested" : "while waiting for review"}">Hurried ×${pr.hurry.count}</span>`
+    : "";
+}
+
+function hurryControl(pr: BoardPullRequest, hurrierId: string | null): string {
+  if (hurrierId === null || !pr.hurry.eligible || pr.hurry.targetIds.length === 0) return "";
+  if (pr.hurry.targetIds.includes(hurrierId)) return "";
+
+  if (pr.hurry.coolingDownUserIds.includes(hurrierId)) {
+    return `<span class="hurry-cooling small">You hurried recently</span>`;
+  }
+
+  return `<button type="button" class="hurry-trigger" data-hurry data-pr-id="${escapeHtml(pr.id)}" data-pr-number="${pr.bitbucketId}" data-target="${pr.hurry.target === "AUTHOR" ? "author" : "reviewers"}" data-names="${escapeHtml(pr.waitingOn.map(firstName).join(", "))}" data-full-names="${escapeHtml(pr.waitingOn.join(", "))}">${pr.hurry.target === "AUTHOR" ? "Hurry up" : "Hurry reviewers"}</button>`;
+}
+
+function hurryRowClasses(pr: BoardPullRequest): string {
+  if (pr.hurry.count === 0) return "";
+  return pr.hurry.count >= MAX_HURRY_LEVEL ? " row-hurried row-hurry-max" : " row-hurried";
+}
+
+function hurryRowStyle(pr: BoardPullRequest): string {
+  return pr.hurry.count > 0 ? ` style="--hurry:${pr.hurry.count}"` : "";
+}
+
 interface PrRowOptions {
   authorControls?: boolean;
   viewerUserId?: string | null;
+  hurrierId?: string | null;
 }
 
 function prRow(pr: BoardPullRequest, options: PrRowOptions = {}): string {
@@ -148,9 +178,9 @@ function prRow(pr: BoardPullRequest, options: PrRowOptions = {}): string {
     : undefined;
   const showMarkReReviewed = viewerReviewer?.manualReReviewPending === true;
 
-  return `<div class="row row-${token}">
+  return `<div class="row row-${token}${hurryRowClasses(pr)}"${hurryRowStyle(pr)}>
   <div class="row-main">
-    <div class="row-title"><span class="mono muted">#${pr.bitbucketId}</span><span class="title">${titleCell}</span>${pr.stale ? '<span class="badge badge-wait">Stale</span>' : ""}${aiReviewBadge(pr)}</div>
+    <div class="row-title"><span class="mono muted">#${pr.bitbucketId}</span><span class="title">${titleCell}</span>${pr.stale ? '<span class="badge badge-wait">Stale</span>' : ""}${hurryBadge(pr)}${aiReviewBadge(pr)}</div>
     <div class="mono small meta">${escapeHtml(pr.repositorySlug)} &nbsp;·&nbsp; ${escapeHtml(pr.sourceBranch)} → ${escapeHtml(pr.destBranch)}</div>
   </div>
   <div class="row-author"><span class="avatar avatar-plain">${escapeHtml(initials(pr.authorName))}</span><span class="small">${escapeHtml(pr.authorName)}</span></div>
@@ -161,6 +191,7 @@ function prRow(pr: BoardPullRequest, options: PrRowOptions = {}): string {
     ${authorControls && pr.reviewers.length > 0 ? requestReReviewControl(pr) : ""}
     ${authorControls && canRequestAiReview(pr) ? aiReviewControl(pr) : ""}
     ${showMarkReReviewed ? markReReviewedControl(pr) : ""}
+    ${hurryControl(pr, options.hurrierId ?? null)}
   </div>
 </div>`;
 }
@@ -292,7 +323,7 @@ function legend(): string {
 export function renderBoard(board: Board, viewer: Viewer | null = null): string {
   const rows =
     board.pullRequests.length > 0
-      ? board.pullRequests.map((pr) => prRow(pr)).join("")
+      ? board.pullRequests.map((pr) => prRow(pr, { hurrierId: viewer?.userId ?? null })).join("")
       : emptyState("No open pull requests. Nothing is waiting on anyone.");
 
   const rail =
@@ -353,6 +384,7 @@ export function renderPersonBoard(
             prRow(pr, {
               authorControls,
               viewerUserId: viewerUserIdForRow,
+              hurrierId: viewer?.userId ?? null,
             })
           )
           .join("")
@@ -471,8 +503,8 @@ function layout(input: LayoutInput): string {
 <title>${escapeHtml(input.heading)} · PR Tracker</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
-<style>${DASHBOARD_STYLES}</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>${DASHBOARD_STYLES}${HURRY_GAME_STYLES}</style>
 </head>
 <body>
 <header class="topbar">
@@ -603,6 +635,7 @@ ${unlinkedNotice(input.viewer)}
   });
 })();
 </script>
+${input.viewer?.userId ? `<script>${HURRY_GAME_SCRIPT}</script>` : ""}
 </body>
 </html>`;
 }

@@ -109,6 +109,20 @@ A Slack account maps to a `User` by `slackUserId`, falling back to a case-insens
 - Config: `AI_REVIEW_REPO_PATH` enables the feature (checkout of the reviewed repo, gitignored under `repos/`; the review runs from it to load its skills/CLAUDE.md files). `AI_REVIEW_REPOSITORY_SLUG` is the single `PullRequest.repositorySlug` the feature applies to, matched case-insensitively (Bitbucket webhooks send the repo's display name, e.g. `Shiplink`, not its lowercase URL slug) — a mismatch behaves exactly like the feature being unconfigured (button hidden, `request()` returns `NOT_CONFIGURED`). The plugin does not need to exist inside that checkout. Optional `AI_REVIEW_PLUGIN_PATH`, `AI_REVIEW_COMMAND`, `AI_REVIEW_CLAUDE_BIN`, `AI_REVIEW_BITBUCKET_MCP_COMMAND`, `AI_REVIEW_BITBUCKET_EMAIL`, `AI_REVIEW_BITBUCKET_API_TOKEN`, `AI_REVIEW_TIMEOUT_MINUTES` (default 30).
 - Docker: the image installs the Claude Code CLI and the Bitbucket MCP server, runs as the host uid (`APP_UID`/`APP_GID`) and mounts `~/.claude` (OAuth credentials, settings, project memory) at `/home/app/.claude` with `CLAUDE_CONFIG_DIR` pointing there; the repo checkout is mounted at the same absolute path as on the host so Claude's per-project memory matches.
 
+### Hurry Up
+
+A signed-in developer can hurry whoever a PR is waiting on, once the PR has sat in its current headline state for at least `DASHBOARD_HURRY_AFTER_HOURS` (default 24):
+
+- `BLOCKED` (changes requested, no push since) → "Hurry up" pings the **author** (`PR_HURRIED`).
+- `AWAITING_FIRST_REVIEW` / `AWAITING_RE_REVIEW` → "Hurry reviewers" pings only the reviewers who still owe a review (`PR_REVIEWERS_HURRIED`), typically used by the author.
+
+`BoardPullRequest.hurry.target` / `targetIds` say who would be pinged; the button shows for every signed-in viewer who is not one of the targets. It opens a full-screen mash game: Space/Enter (or tapping the circle) grows it, it shrinks when you stop, and it only reaches the border at a sustained ~7 presses/second within 15 seconds. Winning posts the hurry; losing sends nothing.
+
+- `src/dashboard/hurry-game.ts` - The game (`HURRY_GAME_SCRIPT`, inlined only for signed-in linked viewers) and the styles for the button, badge and growing cards (`HURRY_GAME_STYLES`). The tuning constants at the top of the script set the difficulty.
+- `src/services/hurry.service.ts` - `hurry()` checks the PR via `DashboardService.getPullRequest` (open, hurryable, you are not a target, not cooling down) and logs the event matching the target. There is no separate model; hurries live in the event log.
+- `POST /dashboard/pr/:prId/hurry` (`requireViewer`) → `{ ok, count }` and a Slack DM to each target (`NotificationService.notifyOnHurry`, mute respected), or 403 you are a target / 404 / 409 not hurryable / 429 cooling down (`DASHBOARD_HURRY_COOLDOWN_MINUTES`, default 60, per person per PR).
+- `BoardPullRequest.hurry.count` counts both hurry events since the PR's current headline state began. The card grows with that count (capped at 6 levels) and shrinks back as soon as the state changes (author pushes, a reviewer responds so the PR moves on). The game itself runs client-side, so the server cannot tell whether someone actually mashed; it only enforces eligibility and the cooldown.
+
 ### Webhook Events Handled
 
 `pullrequest:created`, `pullrequest:updated`, `pullrequest:approved`, `pullrequest:changes_request_created`, `pullrequest:comment_created`, `pullrequest:fulfilled`, `pullrequest:rejected`
@@ -122,7 +136,7 @@ All commands use `/pr` prefix: `status <ws/repo/id>`, `my-reviews`, `my-prs`, `n
 - **User**: Links bitbucketUuid ↔ slackUserId. Has `isWatcher` flag for observers (management) who receive all PR notifications.
 - **PullRequest**: Unique by (bitbucketId, repositorySlug, workspaceSlug). `sourceCommitHash` holds the branch head last seen; comparing it against an incoming payload is how a real push is told apart from a title/description edit.
 - **PRReviewer**: Junction table with review status
-- **PREvent**: Audit log of all PR events. `PR_COMMITS_PUSHED` is ours, not Bitbucket's — emitted only when `sourceCommitHash` actually changes, and it is what invalidates stale reviewer verdicts.
+- **PREvent**: Audit log of all PR events. `PR_COMMITS_PUSHED` is ours, not Bitbucket's — emitted only when `sourceCommitHash` actually changes, and it is what invalidates stale reviewer verdicts. `PR_HURRIED` / `PR_REVIEWERS_HURRIED` are also ours (dashboard "Hurry up").
 - **AiReview**: At most one per PullRequest (unique `pullRequestId`); who requested it, status, Claude's final message and cost.
 
 ### Testing

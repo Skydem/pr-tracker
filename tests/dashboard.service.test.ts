@@ -6,7 +6,7 @@ vi.mock("../src/config/env.js", () => ({
     database: { url: "postgresql://test" },
     slack: { botToken: "x", signingSecret: "x", appToken: "x", adminUserId: "" },
     webhookSecret: "",
-    dashboard: { staleDays: 3 },
+    dashboard: { staleDays: 3, hurryAfterHours: 24, hurryCooldownMinutes: 60 },
     bitbucket: { workspace: "", email: "", apiToken: "", repos: [] },
     aiReview: { repoPath: "/srv/shiplink", repositorySlug: "backend-api" },
   },
@@ -306,6 +306,106 @@ describe("DashboardService", () => {
       ]);
     });
 
+    it("counts hurries only since the PR became blocked and makes it hurryable after the wait", async () => {
+      vi.mocked(prisma.pullRequest.findMany).mockResolvedValue([
+        prRecord({
+          createdAt: new Date("2026-08-15T10:00:00Z"),
+          reviewers: [reviewer(people.sarah, "CHANGES_REQUESTED")],
+          events: [
+            { eventType: "PR_CHANGES_REQUESTED", actorId: people.sarah.id, createdAt: new Date("2026-08-16T10:00:00Z") },
+            { eventType: "PR_HURRIED", actorId: people.mike.id, createdAt: new Date("2026-08-16T08:00:00Z") },
+            { eventType: "PR_HURRIED", actorId: people.sarah.id, createdAt: new Date("2026-08-18T09:00:00Z") },
+            { eventType: "PR_HURRIED", actorId: people.mike.id, createdAt: new Date("2026-08-20T11:30:00Z") },
+          ],
+        }),
+      ] as never);
+
+      const board = await service.getBoard(NOW);
+
+      expect(board.pullRequests[0]!.hurry).toEqual({
+        count: 2,
+        eligible: true,
+        target: "AUTHOR",
+        targetIds: [people.john.id],
+        coolingDownUserIds: [people.mike.id],
+      });
+    });
+
+    it("targets the reviewers who still owe a review once the PR has waited long enough", async () => {
+      vi.mocked(prisma.pullRequest.findMany).mockResolvedValue([
+        prRecord({
+          createdAt: new Date("2026-08-17T10:00:00Z"),
+          reviewers: [
+            reviewer(people.sarah, "PENDING"),
+            reviewer(people.mike, "APPROVED"),
+            reviewer(people.emma, "PENDING"),
+          ],
+          events: [
+            { eventType: "PR_APPROVED", actorId: people.mike.id, createdAt: new Date("2026-08-18T10:00:00Z") },
+            { eventType: "PR_REVIEWERS_HURRIED", actorId: people.john.id, createdAt: new Date("2026-08-20T11:30:00Z") },
+          ],
+        }),
+      ] as never);
+
+      const board = await service.getBoard(NOW);
+
+      expect(board.pullRequests[0]!.hurry).toEqual({
+        count: 1,
+        eligible: true,
+        target: "REVIEWERS",
+        targetIds: [people.sarah.id, people.emma.id],
+        coolingDownUserIds: [people.john.id],
+      });
+    });
+
+    it("never offers a hurry on a PR that is ready to merge", async () => {
+      vi.mocked(prisma.pullRequest.findMany).mockResolvedValue([
+        prRecord({
+          createdAt: new Date("2026-08-01T10:00:00Z"),
+          reviewers: [reviewer(people.sarah, "APPROVED")],
+          events: [
+            { eventType: "PR_APPROVED", actorId: people.sarah.id, createdAt: new Date("2026-08-02T10:00:00Z") },
+          ],
+        }),
+      ] as never);
+
+      const board = await service.getBoard(NOW);
+
+      expect(board.pullRequests[0]!.hurry).toEqual({
+        count: 0,
+        eligible: false,
+        target: null,
+        targetIds: [],
+        coolingDownUserIds: [],
+      });
+    });
+
+    it("is not hurryable before the wait passes and drops old hurries once the state changes", async () => {
+      vi.mocked(prisma.pullRequest.findMany).mockResolvedValue([
+        prRecord({
+          reviewers: [reviewer(people.sarah, "CHANGES_REQUESTED")],
+          events: [
+            { eventType: "PR_CHANGES_REQUESTED", actorId: people.sarah.id, createdAt: new Date("2026-08-20T01:00:00Z") },
+          ],
+        }),
+        prRecord({
+          id: "pr-2",
+          bitbucketId: 483,
+          reviewers: [reviewer(people.sarah, "CHANGES_REQUESTED")],
+          events: [
+            { eventType: "PR_CHANGES_REQUESTED", actorId: people.sarah.id, createdAt: new Date("2026-08-10T10:00:00Z") },
+            { eventType: "PR_HURRIED", actorId: people.mike.id, createdAt: new Date("2026-08-15T10:00:00Z") },
+            { eventType: "PR_COMMITS_PUSHED", actorId: people.john.id, createdAt: new Date("2026-08-16T10:00:00Z") },
+          ],
+        }),
+      ] as never);
+
+      const board = await service.getBoard(NOW);
+
+      expect(board.pullRequests.find((pr) => pr.id === "pr-1")!.hurry.eligible).toBe(false);
+      expect(board.pullRequests.find((pr) => pr.id === "pr-2")!.hurry.count).toBe(0);
+    });
+
     it("returns an empty board when nothing is open", async () => {
       vi.mocked(prisma.pullRequest.findMany).mockResolvedValue([] as never);
 
@@ -352,6 +452,25 @@ describe("DashboardService", () => {
       vi.mocked(prisma.user.findUnique).mockResolvedValue(null as never);
 
       expect(await service.getPersonBoard("nobody", NOW)).toBeNull();
+    });
+  });
+
+  describe("getPullRequest", () => {
+    it("builds a single open pull request", async () => {
+      vi.mocked(prisma.pullRequest.findUnique).mockResolvedValue({ ...prRecord(), state: "OPEN" } as never);
+
+      const pr = await service.getPullRequest("pr-1", NOW);
+
+      expect(pr!.id).toBe("pr-1");
+      expect(pr!.state).toBe("AWAITING_FIRST_REVIEW");
+    });
+
+    it("returns null for a closed or missing pull request", async () => {
+      vi.mocked(prisma.pullRequest.findUnique).mockResolvedValueOnce({ ...prRecord(), state: "MERGED" } as never);
+      expect(await service.getPullRequest("pr-1", NOW)).toBeNull();
+
+      vi.mocked(prisma.pullRequest.findUnique).mockResolvedValueOnce(null);
+      expect(await service.getPullRequest("pr-1", NOW)).toBeNull();
     });
   });
 

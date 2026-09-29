@@ -21,6 +21,7 @@ vi.mock("../src/services/slack.service.js", () => ({
     buildNudgeMessage: vi.fn().mockReturnValue({ blocks: [], text: "test" }),
     buildReReviewRequestedMessage: vi.fn().mockReturnValue({ blocks: [], text: "test" }),
     buildReReviewedMessage: vi.fn().mockReturnValue({ blocks: [], text: "test" }),
+    buildHurryMessage: vi.fn().mockReturnValue({ blocks: [], text: "test" }),
   },
 }));
 
@@ -234,6 +235,35 @@ describe("NotificationService", () => {
       };
 
       await notificationService.notifyAuthorOnReReviewed(prWithNoSlack, "Reviewer");
+
+      expect(slackService.sendDM).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("notifyOnHurry", () => {
+    it("should notify author with the hurry count", async () => {
+      await notificationService.notifyOnHurry(mockPR, "AUTHOR", ["author-1"], "Hurrier", 3);
+
+      expect(slackService.buildHurryMessage).toHaveBeenCalledWith(mockPR, "AUTHOR", "Hurrier", 3);
+      expect(slackService.sendDM).toHaveBeenCalledTimes(1);
+      expect(slackService.sendDM).toHaveBeenCalledWith("slack-author", [], "test");
+    });
+
+    it("should notify only the targeted reviewers", async () => {
+      await notificationService.notifyOnHurry(mockPR, "REVIEWERS", ["u1"], "Author", 2);
+
+      expect(slackService.buildHurryMessage).toHaveBeenCalledWith(mockPR, "REVIEWERS", "Author", 2);
+      expect(slackService.sendDM).toHaveBeenCalledTimes(1);
+      expect(slackService.sendDM).toHaveBeenCalledWith("slack-r1", [], "test");
+    });
+
+    it("should not notify if author has no slack account", async () => {
+      const prWithNoSlack = {
+        ...mockPR,
+        author: { displayName: "Author", slackUserId: null },
+      };
+
+      await notificationService.notifyOnHurry(prWithNoSlack, "AUTHOR", ["author-1"], "Hurrier", 1);
 
       expect(slackService.sendDM).not.toHaveBeenCalled();
     });
