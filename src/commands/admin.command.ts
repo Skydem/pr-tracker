@@ -1,6 +1,7 @@
 import type { App } from "@slack/bolt";
 import { prisma } from "../db/client.js";
 import { config } from "../config/env.js";
+import { isAdminSlackUser } from "../utils/admin.js";
 import { bitbucketApiService } from "../services/bitbucket-api.service.js";
 import { prService } from "../services/pr.service.js";
 
@@ -13,11 +14,7 @@ export function registerAdminCommand(app: App): void {
 
     await ack();
 
-    if (!config.slack.adminUserId) {
-      return;
-    }
-
-    if (command.user_id !== config.slack.adminUserId) {
+    if (!isAdminSlackUser(command.user_id)) {
       return;
     }
 

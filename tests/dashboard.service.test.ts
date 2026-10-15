@@ -4,7 +4,7 @@ vi.mock("../src/config/env.js", () => ({
   config: {
     port: 3000,
     database: { url: "postgresql://test" },
-    slack: { botToken: "x", signingSecret: "x", appToken: "x", adminUserId: "" },
+    slack: { botToken: "x", signingSecret: "x", appToken: "x", adminUserIds: [] },
     webhookSecret: "",
     dashboard: { staleDays: 3, hurryAfterHours: 24, hurryCooldownMinutes: 60 },
     bitbucket: { workspace: "", email: "", apiToken: "", repos: [] },

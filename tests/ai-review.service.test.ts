@@ -116,6 +116,16 @@ describe("AiReviewService.request", () => {
     expect(prisma.aiReview.create).not.toHaveBeenCalled();
   });
 
+  it("lets an admin ask on someone else's pull request", async () => {
+    const service = new AiReviewService(runnerReturning({ ok: true, summary: "", costUsd: null, turns: null, sessionId: null }));
+    vi.mocked(prisma.pullRequest.findUnique).mockResolvedValue(openPR as never);
+    vi.mocked(prisma.aiReview.create).mockResolvedValue({ id: "rev-1" } as never);
+
+    expect(await service.request("pr-1", other, { asAdmin: true })).toEqual({ ok: true, reviewId: "rev-1" });
+    expect(vi.mocked(prisma.aiReview.create).mock.calls[0]![0].data.requestedById).toBe(other);
+    expect(vi.mocked(prisma.pREvent.create).mock.calls[0]![0].data.actorId).toBe(other);
+  });
+
   it("allows exactly one completed review per pull request", async () => {
     const service = new AiReviewService(runnerReturning({ ok: true, summary: "", costUsd: null, turns: null, sessionId: null }));
     vi.mocked(prisma.pullRequest.findUnique).mockResolvedValue({

@@ -17,6 +17,7 @@ import type {
   PersonRef,
 } from "../services/dashboard.service.js";
 import type { Viewer } from "../auth/viewer.js";
+import { isAdminSlackUser } from "../utils/admin.js";
 import { DASHBOARD_STYLES } from "./dashboard.styles.js";
 import { HURRY_GAME_SCRIPT, HURRY_GAME_STYLES } from "./hurry-game.js";
 
@@ -154,6 +155,7 @@ function hurryRowStyle(pr: BoardPullRequest): string {
 
 interface PrRowOptions {
   authorControls?: boolean;
+  adminControls?: boolean;
   viewerUserId?: string | null;
   hurrierId?: string | null;
 }
@@ -189,7 +191,7 @@ function prRow(pr: BoardPullRequest, options: PrRowOptions = {}): string {
     <span class="mono age age-${token}">${pr.state === "READY_TO_MERGE" ? "ready" : escapeHtml(formatAge(pr.ageMs))}</span>
     <span class="wait-note">${escapeHtml(waiting)}</span>
     ${authorControls && pr.reviewers.length > 0 ? requestReReviewControl(pr) : ""}
-    ${authorControls && canRequestAiReview(pr) ? aiReviewControl(pr) : ""}
+    ${(authorControls || options.adminControls) && canRequestAiReview(pr) ? aiReviewControl(pr) : ""}
     ${showMarkReReviewed ? markReReviewedControl(pr) : ""}
     ${hurryControl(pr, options.hurrierId ?? null)}
   </div>
@@ -241,6 +243,10 @@ function personPicker(
 
 function slackMark(size: number): string {
   return `<svg width="${size}" height="${size}" viewBox="0 0 122.8 122.8" aria-hidden="true" focusable="false"><path d="M25.8 77.6a12.9 12.9 0 1 1-12.9-12.9h12.9v12.9zm6.5 0a12.9 12.9 0 0 1 25.8 0v32.3a12.9 12.9 0 0 1-25.8 0V77.6z" fill="#E01E5A"></path><path d="M45.2 25.8a12.9 12.9 0 1 1 12.9-12.9v12.9H45.2zm0 6.5a12.9 12.9 0 0 1 0 25.8H12.9a12.9 12.9 0 0 1 0-25.8h32.3z" fill="#36C5F0"></path><path d="M97 45.2a12.9 12.9 0 1 1 12.9 12.9H97V45.2zm-6.5 0a12.9 12.9 0 0 1-25.8 0V12.9a12.9 12.9 0 0 1 25.8 0v32.3z" fill="#2EB67D"></path><path d="M77.6 97a12.9 12.9 0 1 1-12.9 12.9V97h12.9zm0-6.5a12.9 12.9 0 0 1 0-25.8h32.3a12.9 12.9 0 0 1 0 25.8H77.6z" fill="#ECB22E"></path></svg>`;
+}
+
+function isLinkedAdmin(viewer: Viewer | null): boolean {
+  return viewer !== null && viewer.userId !== null && isAdminSlackUser(viewer.slackUserId);
 }
 
 function authControls(viewer: Viewer | null): string {
@@ -323,7 +329,11 @@ function legend(): string {
 export function renderBoard(board: Board, viewer: Viewer | null = null): string {
   const rows =
     board.pullRequests.length > 0
-      ? board.pullRequests.map((pr) => prRow(pr, { hurrierId: viewer?.userId ?? null })).join("")
+      ? board.pullRequests
+          .map((pr) =>
+            prRow(pr, { hurrierId: viewer?.userId ?? null, adminControls: isLinkedAdmin(viewer) })
+          )
+          .join("")
       : emptyState("No open pull requests. Nothing is waiting on anyone.");
 
   const rail =
@@ -383,6 +393,7 @@ export function renderPersonBoard(
           .map((pr) =>
             prRow(pr, {
               authorControls,
+              adminControls: isLinkedAdmin(viewer),
               viewerUserId: viewerUserIdForRow,
               hurrierId: viewer?.userId ?? null,
             })

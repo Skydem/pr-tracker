@@ -29,7 +29,10 @@ export const config = {
     botToken: requireEnv("SLACK_BOT_TOKEN"),
     signingSecret: requireEnv("SLACK_SIGNING_SECRET"),
     appToken: requireEnv("SLACK_APP_TOKEN"),
-    adminUserId: optionalEnv("SLACK_ADMIN_USER_ID", ""),
+    adminUserIds: optionalEnv("SLACK_ADMIN_USER_ID", "")
+      .split(",")
+      .map((id) => id.trim())
+      .filter(Boolean),
     clientId: optionalEnv("SLACK_CLIENT_ID", ""),
     clientSecret: optionalEnv("SLACK_CLIENT_SECRET", ""),
     teamId: optionalEnv("SLACK_TEAM_ID", ""),

@@ -26,7 +26,7 @@ import {
 vi.mock("../../src/config/env.js", () => ({
   config: {
     webhookSecret: "",
-    slack: { adminUserId: "" },
+    slack: { adminUserIds: [] },
   },
 }));
 

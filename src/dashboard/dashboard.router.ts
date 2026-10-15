@@ -3,6 +3,7 @@ import { Router as createRouter } from "express";
 import { dashboardService } from "../services/dashboard.service.js";
 import { prService } from "../services/pr.service.js";
 import { notificationService } from "../services/notification.service.js";
+import { isAdminSlackUser } from "../utils/admin.js";
 import { aiReviewService, type AiReviewRequestFailure } from "../services/ai-review.service.js";
 import { hurryService, type HurryFailure } from "../services/hurry.service.js";
 import { requireViewer } from "../auth/session.js";
@@ -146,7 +147,9 @@ export function createDashboardRouter(): Router {
       return;
     }
 
-    const result = await aiReviewService.request(req.params.prId!, viewer.userId);
+    const result = await aiReviewService.request(req.params.prId!, viewer.userId, {
+      asAdmin: isAdminSlackUser(viewer.slackUserId),
+    });
 
     if (!result.ok) {
       res.status(aiReviewErrorStatus(result.reason)).json({ error: aiReviewErrorMessage(result.reason) });
@@ -235,7 +238,7 @@ function aiReviewErrorMessage(reason: AiReviewRequestFailure): string {
     case "NOT_FOUND":
       return "Pull request not found";
     case "NOT_AUTHOR":
-      return "Only the author can request an AI review";
+      return "Only the author or an admin can request an AI review";
     case "ALREADY_REVIEWED":
       return "This pull request already has its AI review";
     case "IN_PROGRESS":

@@ -39,7 +39,11 @@ export class AiReviewService {
     );
   }
 
-  async request(pullRequestId: string, requesterId: string): Promise<RequestAiReviewResult> {
+  async request(
+    pullRequestId: string,
+    requesterId: string,
+    options: { asAdmin?: boolean } = {}
+  ): Promise<RequestAiReviewResult> {
     if (!this.isEnabled()) return { ok: false, reason: "NOT_CONFIGURED" };
 
     const pr = await prisma.pullRequest.findUnique({
@@ -49,7 +53,7 @@ export class AiReviewService {
 
     if (!pr || pr.state !== "OPEN") return { ok: false, reason: "NOT_FOUND" };
     if (!this.isEnabledFor(pr.repositorySlug)) return { ok: false, reason: "NOT_CONFIGURED" };
-    if (pr.authorId !== requesterId) return { ok: false, reason: "NOT_AUTHOR" };
+    if (pr.authorId !== requesterId && !options.asAdmin) return { ok: false, reason: "NOT_AUTHOR" };
 
     const existing = pr.aiReview;
     if (existing?.status === "COMPLETED") return { ok: false, reason: "ALREADY_REVIEWED" };
