@@ -154,6 +154,40 @@ describe("PRService", () => {
       expect(result).toBeDefined();
     });
 
+    it("stores the draft flag and keeps it when a payload omits it", async () => {
+      vi.mocked(userService.findOrCreateUser).mockResolvedValue(mockUser);
+      const existingPR = {
+        id: "pr-1",
+        bitbucketId: 123,
+        repositorySlug: "test-repo",
+        workspaceSlug: "workspace",
+        title: "Test PR",
+        sourceBranch: "feature-branch",
+        destBranch: "main",
+        sourceCommitHash: null,
+        state: "OPEN" as const,
+        isDraft: true,
+        url: null,
+        authorId: "user-1",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      vi.mocked(prisma.pullRequest.findUnique).mockResolvedValue(existingPR);
+      vi.mocked(prisma.pullRequest.update).mockResolvedValue(existingPR);
+      vi.mocked(prisma.pRReviewer.findMany).mockResolvedValue([]);
+      vi.mocked(prisma.pullRequest.findUniqueOrThrow).mockResolvedValue({
+        ...existingPR,
+        reviewers: [],
+        author: { displayName: "Test Author", slackUserId: "slack-1" },
+      } as never);
+
+      await prService.createOrUpdatePR({ ...mockPR, draft: undefined }, "workspace");
+      expect(vi.mocked(prisma.pullRequest.update).mock.calls[0]![0].data.isDraft).toBe(true);
+
+      await prService.createOrUpdatePR({ ...mockPR, draft: false }, "workspace");
+      expect(vi.mocked(prisma.pullRequest.update).mock.calls[1]![0].data.isDraft).toBe(false);
+    });
+
     describe("push detection", () => {
       const existingPR = {
         id: "pr-1",

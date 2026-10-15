@@ -34,6 +34,7 @@ model PullRequest {
   destBranch     String
   sourceCommitHash String?
   state          PRState  @default(OPEN)
+  isDraft        Boolean  @default(false)
   url            String?
   authorId       String
   author         User     @relation("Author", fields: [authorId], references: [id])

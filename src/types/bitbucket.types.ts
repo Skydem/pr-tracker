@@ -33,6 +33,7 @@ export interface BitbucketPullRequest {
   title: string;
   description: string;
   state: "OPEN" | "MERGED" | "DECLINED" | "SUPERSEDED";
+  draft?: boolean;
   source: {
     branch: BitbucketBranch;
     repository: BitbucketRepository;

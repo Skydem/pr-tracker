@@ -61,6 +61,7 @@ export class PRService {
           destBranch: prData.destination.branch.name,
           sourceCommitHash: sourceCommitHash ?? existingPR.sourceCommitHash,
           state: prState,
+          isDraft: prData.draft ?? existingPR.isDraft,
           url: prData.links?.html?.href,
         },
       });
@@ -86,6 +87,7 @@ export class PRService {
           destBranch: prData.destination.branch.name,
           sourceCommitHash,
           state: prState,
+          isDraft: prData.draft ?? false,
           url: prData.links?.html?.href,
           authorId: author.id,
         },

@@ -134,7 +134,7 @@ All commands use `/pr` prefix: `status <ws/repo/id>`, `my-reviews`, `my-prs`, `n
 ### Database Models
 
 - **User**: Links bitbucketUuid ↔ slackUserId. Has `isWatcher` flag for observers (management) who receive all PR notifications.
-- **PullRequest**: Unique by (bitbucketId, repositorySlug, workspaceSlug). `sourceCommitHash` holds the branch head last seen; comparing it against an incoming payload is how a real push is told apart from a title/description edit.
+- **PullRequest**: Unique by (bitbucketId, repositorySlug, workspaceSlug). `isDraft` mirrors Bitbucket's `draft` flag (kept as-is when a payload omits it); drafts are left off every dashboard board and cannot be hurried. `sourceCommitHash` holds the branch head last seen; comparing it against an incoming payload is how a real push is told apart from a title/description edit.
 - **PRReviewer**: Junction table with review status
 - **PREvent**: Audit log of all PR events. `PR_COMMITS_PUSHED` is ours, not Bitbucket's — emitted only when `sourceCommitHash` actually changes, and it is what invalidates stale reviewer verdicts. `PR_HURRIED` / `PR_REVIEWERS_HURRIED` are also ours (dashboard "Hurry up").
 - **AiReview**: At most one per PullRequest (unique `pullRequestId`); who requested it, status, Claude's final message and cost.

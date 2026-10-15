@@ -141,7 +141,7 @@ const HOUR_MS = 60 * MINUTE_MS;
 export class DashboardService {
   async getBoard(now: Date = new Date()): Promise<Board> {
     const records = await prisma.pullRequest.findMany({
-      where: { state: "OPEN" },
+      where: { state: "OPEN", isDraft: false },
       include: BOARD_PR_INCLUDE,
       orderBy: { updatedAt: "desc" },
     });
@@ -173,7 +173,7 @@ export class DashboardService {
       include: BOARD_PR_INCLUDE,
     });
 
-    if (!record || record.state !== "OPEN") return null;
+    if (!record || record.state !== "OPEN" || record.isDraft) return null;
 
     return this.buildPullRequest(record, now, config.dashboard.staleDays);
   }

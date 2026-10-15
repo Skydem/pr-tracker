@@ -62,6 +62,17 @@ describe("DashboardService", () => {
   });
 
   describe("getBoard", () => {
+    it("leaves draft pull requests off the board", async () => {
+      vi.mocked(prisma.pullRequest.findMany).mockResolvedValue([] as never);
+
+      await service.getBoard(NOW);
+
+      expect(vi.mocked(prisma.pullRequest.findMany).mock.calls[0]![0]!.where).toEqual({
+        state: "OPEN",
+        isDraft: false,
+      });
+    });
+
     it("carries the AI review state and whether the feature is enabled for the PR's repo", async () => {
       vi.mocked(prisma.pullRequest.findMany).mockResolvedValue([
         prRecord({
@@ -456,6 +467,12 @@ describe("DashboardService", () => {
   });
 
   describe("getPullRequest", () => {
+    it("returns null for a draft pull request", async () => {
+      vi.mocked(prisma.pullRequest.findUnique).mockResolvedValue({ ...prRecord(), state: "OPEN", isDraft: true } as never);
+
+      expect(await service.getPullRequest("pr-1", NOW)).toBeNull();
+    });
+
     it("builds a single open pull request", async () => {
       vi.mocked(prisma.pullRequest.findUnique).mockResolvedValue({ ...prRecord(), state: "OPEN" } as never);
 
